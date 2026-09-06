@@ -16,7 +16,7 @@ android {
     ndkVersion = "27.0.12077973"
     defaultConfig {
         applicationId = "com.example.mdocreader"
-        minSdk = 31
+        minSdk = 27
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -78,7 +78,7 @@ androidComponents.onVariants { variant ->
         environment("ANDROID_NDK_HOME", sdkPath.resolve("ndk/27.0.12077973").absolutePath)
         // Cargo feature outputs must not race when Gradle builds both flavors.
         environment("CARGO_TARGET_DIR", rustRoot.resolve("target/android/${variant.name}").absolutePath)
-        commandLine(listOf("cargo", "ndk", "-t", "arm64-v8a", "-P", "31", "-o",
+        commandLine(listOf("cargo", "ndk", "-t", "arm64-v8a", "-P", "27", "-o",
             outputDirectory.get().asFile.absolutePath, "build", "--locked", "-p", "mdoc-android") +
             (if (btstack) listOf("--features", "btstack") else emptyList()) +
             (if (release) listOf("--release") else emptyList()))
