@@ -20,20 +20,30 @@ data class ReaderState(val busy: Boolean = false, val stage: String = "idle", va
 data class ReaderDocument(val docType: String, val fields: List<ReaderField>, val errors: String?)
 data class ReaderField(val namespace: String, val name: String, val value: String, val image: Bitmap?)
 
+private val preferredFieldOrder = listOf(
+    "portrait",
+    "full_name_unicode",
+    "resident_address_unicode",
+    "birth_date_unicode",
+).withIndex().associate { (index, name) -> name to index }
+
+internal fun orderFieldsForDisplay(fields: List<ReaderField>): List<ReaderField> =
+    fields.sortedBy { preferredFieldOrder[it.name] ?: Int.MAX_VALUE }
+
 fun parseDocuments(raw: String): List<ReaderDocument> {
     val root = JSONObject(raw)
     val docs = root.getJSONArray("documents")
     return (0 until docs.length()).map { index ->
         val doc = docs.getJSONObject(index)
         val fields = doc.getJSONArray("fields")
-        ReaderDocument(doc.getString("docType"), (0 until fields.length()).map { fieldIndex ->
+        ReaderDocument(doc.getString("docType"), orderFieldsForDisplay((0 until fields.length()).map { fieldIndex ->
             val field = fields.getJSONObject(fieldIndex)
             val image = field.optString("image").takeIf { it.isNotEmpty() }?.let {
                 val bytes = Base64.decode(it, Base64.DEFAULT)
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             }
             ReaderField(field.getString("namespace"), field.getString("name"), field.get("value").toString(), image)
-        }, listOfNotNull(doc.opt("errors")?.takeUnless { it == JSONObject.NULL }?.toString(),
+        }), listOfNotNull(doc.opt("errors")?.takeUnless { it == JSONObject.NULL }?.toString(),
             root.opt("documentErrors")?.takeUnless { it == JSONObject.NULL }?.toString()).joinToString("\n").ifEmpty { null })
     }
 }
