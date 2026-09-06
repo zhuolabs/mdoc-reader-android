@@ -45,6 +45,15 @@ Debug APK: `android/app/build/outputs/apk/platform/debug/app-platform-debug.apk`
 
 ## BLE backend flavors
 
+> [!WARNING]
+> The `btstack` flavor includes BlueKitchen BTstack. Its bundled license permits
+> redistribution, use, and modification solely for personal benefit, not for any
+> commercial purpose or monetary gain. **Do not use the `btstack` flavor for
+> commercial purposes** unless you have obtained a separate commercial license
+> from BlueKitchen. See the [pinned BTstack license](https://github.com/bluekitchen/btstack/blob/431d58d5613fd8fae38afe50282b25302de84bf7/LICENSE)
+> for the complete terms and commercial licensing contact. The `platform` flavor
+> does not include BTstack and is not subject to this BTstack restriction.
+
 | Flavor | BLE hardware | Debug task |
 | --- | --- | --- |
 | `platform` | Android built-in Bluetooth GATT server (existing backend) | `:app:assemblePlatformDebug` |
