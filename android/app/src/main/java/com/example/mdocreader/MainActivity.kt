@@ -45,9 +45,14 @@ class MainActivity : ComponentActivity() {
             MdocReaderTheme {
                 ReaderScreen(current, ::requestRead, ::cancelRead,
                     { state.value = ReaderState() },
-                    { startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS)) })
+                    ::openConnectionPreferences)
             }
         }
+    }
+    private fun openConnectionPreferences() {
+        val advancedSettings = Intent("com.android.settings.ADVANCED_CONNECTED_DEVICE_SETTINGS")
+        startActivity(advancedSettings.takeIf { it.resolveActivity(packageManager) != null }
+            ?: Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
     }
     private fun requestRead() {
         if (reading?.isCompleted == false) return
