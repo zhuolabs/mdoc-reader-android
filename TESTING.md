@@ -11,6 +11,16 @@
 
 ## USB BTstack validation (2026-09-06)
 
+### Advertising API migration
+
+btstack-gatt-rs revision `18081f4da678ca8bba87084787f4365dd0a233dc` adds typed legacy advertising configuration and `.advertise_service_uuid(...)`. The reader now uses that API with the negotiated UUID; its HCI command rewriting shim and direct `btstack-core` dependency have been removed. Advertising encoding/limit tests now live upstream.
+
+After migration: btstack-gatt-rs workspace tests **15 passed** (one desktop USB hardware test ignored), strict workspace Clippy passed; reader workspace tests **7 passed**, targeted backend Clippy and formatting passed. Both reader debug flavors built, and BTstack lint passed. On the Pixel 9a + 0411:0374, `ReaderIntegrationTest` passed all **4 tests**, and `UsbGattWireTest` plus the PC central passed **two rounds** of UUID discovery, Ident, State and 200 frames in each direction, with server restart between rounds. Records: `.artifacts/advertising-api-integration.txt`, `advertising-api-wire.txt`, and `advertising-api-central.txt`.
+
+The user reported the preceding implementation working. This migration was validated with synthetic BLE traffic; no additional personal wallet presentation was performed by the agent.
+
+### Initial USB implementation
+
 Validated on the Pixel 9a with USB dongle **0411:0374** (Bluetooth Radio). ADB `192.168.1.9:46131` and the mDNS entry refer to the same physical device; use one serial to avoid duplicate test runs.
 
 - Both `platformDebug` and `btstackDebug` APKs built successfully, including generated UniFFI bindings. Both flavor lint tasks: **0 errors, 17 warnings**.

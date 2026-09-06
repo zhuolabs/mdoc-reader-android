@@ -1,10 +1,10 @@
 //! USB BTstack backend for the shared mdoc BLE connector and framing.
 use anyhow::{Result, anyhow, bail, ensure};
-use btstack_core::{HciPacket, HciTransport};
 use btstack_gatt::{
     GattCharacteristic, GattConnection, GattServer, GattService, GattStatus, ServerEvent,
     SubscriptionType,
 };
+use btstack_nusb::NusbHciTransport;
 use mdoc_android_platform::{BlePlatform, EventSink};
 use std::{
     collections::VecDeque,
@@ -24,35 +24,6 @@ const STATE: [u8; 16] = characteristic(5);
 const C2S: [u8; 16] = characteristic(6);
 const S2C: [u8; 16] = characteristic(7);
 const IDENT: [u8; 16] = characteristic(8);
-
-// Upstream currently exposes name-only advertising. Adapt its standard HCI
-// LE Set Advertising Data command (0x2008), preserving command/completion flow.
-// mdoc centrals discover the UUID negotiated over NFC, not the local name.
-struct MdocAdvertising<T> {
-    inner: T,
-    uuid: [u8; 16],
-}
-fn advertising_command(uuid: [u8; 16]) -> Vec<u8> {
-    let mut command = vec![0x08, 0x20, 32, 21, 2, 1, 6, 17, 7];
-    command.extend(uuid.into_iter().rev());
-    command.resize(35, 0);
-    command
-}
-impl<T: HciTransport> HciTransport for MdocAdvertising<T> {
-    fn send(&mut self, kind: u8, packet: &[u8]) -> std::result::Result<(), btstack_core::Error> {
-        if kind == 1 && packet.starts_with(&[0x08, 0x20, 32]) && packet.len() == 35 {
-            self.inner.send(kind, &advertising_command(self.uuid))
-        } else {
-            self.inner.send(kind, packet)
-        }
-    }
-    fn receive(
-        &mut self,
-        timeout: Duration,
-    ) -> std::result::Result<Option<HciPacket>, btstack_core::Error> {
-        self.inner.receive(timeout)
-    }
-}
 
 #[derive(Default)]
 struct Peer {
@@ -112,24 +83,11 @@ impl Peer {
 }
 
 pub struct BtstackBle {
-    transport: Mutex<Option<Box<dyn HciTransport>>>,
+    transport: Mutex<Option<NusbHciTransport>>,
     server: Mutex<Option<GattServer>>,
     peer: Arc<Mutex<Peer>>,
     stopped: AtomicBool,
     events: Arc<dyn EventSink>,
-}
-// The upstream builder uses a concrete transport; this is our owned boundary.
-struct Transport(Box<dyn HciTransport>);
-impl HciTransport for Transport {
-    fn send(&mut self, kind: u8, packet: &[u8]) -> std::result::Result<(), btstack_core::Error> {
-        self.0.send(kind, packet)
-    }
-    fn receive(
-        &mut self,
-        timeout: Duration,
-    ) -> std::result::Result<Option<HciPacket>, btstack_core::Error> {
-        self.0.receive(timeout)
-    }
 }
 impl BtstackBle {
     #[cfg(any(target_os = "android", target_os = "linux"))]
@@ -137,7 +95,7 @@ impl BtstackBle {
         let transport =
             btstack_nusb::NusbHciTransport::from_fd(fd).map_err(|e| anyhow!(e.to_string()))?;
         Ok(Self {
-            transport: Mutex::new(Some(Box::new(transport))),
+            transport: Mutex::new(Some(transport)),
             server: Mutex::new(None),
             peer: Arc::new(Mutex::new(Peer::default())),
             stopped: AtomicBool::new(false),
@@ -208,39 +166,37 @@ impl BlePlatform for BtstackBle {
         let state = self.peer.clone();
         let packets = self.peer.clone();
         let reads = self.peer.clone();
-        let server = GattServer::builder(MdocAdvertising {
-            inner: Transport(transport),
-            uuid,
-        })
-        .name("mdoc USB")
-        .service(
-            GattService::new(uuid)
-                .characteristic(
-                    GattCharacteristic::new(STATE)
-                        .write_without_response()
-                        .notify()
-                        .on_write(move |r| {
-                            state.lock().unwrap().write(r.connection, true, r.value())
-                        }),
-                )
-                .characteristic(
-                    GattCharacteristic::new(C2S)
-                        .write_without_response()
-                        .on_write(move |r| {
-                            packets
-                                .lock()
-                                .unwrap()
-                                .write(r.connection, false, r.value())
-                        }),
-                )
-                .characteristic(GattCharacteristic::new(S2C).notify())
-                .characteristic(GattCharacteristic::new(IDENT).read().on_read(move |r| {
-                    reads.lock().unwrap().accept(r.connection)?;
-                    Ok(ident.clone())
-                })),
-        )
-        .start()
-        .map_err(|e| anyhow!(e.to_string()))?;
+        let server = GattServer::builder(transport)
+            .advertise_service_uuid(uuid)
+            .name("mdoc USB")
+            .service(
+                GattService::new(uuid)
+                    .characteristic(
+                        GattCharacteristic::new(STATE)
+                            .write_without_response()
+                            .notify()
+                            .on_write(move |r| {
+                                state.lock().unwrap().write(r.connection, true, r.value())
+                            }),
+                    )
+                    .characteristic(
+                        GattCharacteristic::new(C2S)
+                            .write_without_response()
+                            .on_write(move |r| {
+                                packets
+                                    .lock()
+                                    .unwrap()
+                                    .write(r.connection, false, r.value())
+                            }),
+                    )
+                    .characteristic(GattCharacteristic::new(S2C).notify())
+                    .characteristic(GattCharacteristic::new(IDENT).read().on_read(move |r| {
+                        reads.lock().unwrap().accept(r.connection)?;
+                        Ok(ident.clone())
+                    })),
+            )
+            .start()
+            .map_err(|e| anyhow!(e.to_string()))?;
         let result = (|| {
             self.check()?;
             self.events.on_event("ble_advertising".into());
@@ -330,20 +286,5 @@ mod tests {
                 .contains("ended")
         );
         assert_eq!(Peer::default().next_packet().unwrap(), None);
-    }
-    #[test]
-    fn advertises_negotiated_uuid_in_bluetooth_byte_order() {
-        let uuid = *uuid::Uuid::parse_str("00112233-4455-6677-8899-aabbccddeeff")
-            .unwrap()
-            .as_bytes();
-        let packet = advertising_command(uuid);
-        assert_eq!(&packet[..9], &[8, 32, 32, 21, 2, 1, 6, 17, 7]);
-        assert_eq!(
-            &packet[9..25],
-            &[
-                255, 238, 221, 204, 187, 170, 153, 136, 119, 102, 85, 68, 51, 34, 17, 0
-            ]
-        );
-        assert_eq!(&packet[25..], &[0; 10]);
     }
 }

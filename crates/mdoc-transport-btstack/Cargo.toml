@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 anyhow.workspace = true
 mdoc-android-platform.workspace = true
-btstack-gatt = { git = "https://github.com/zhuolabs/btstack-gatt-rs", rev = "1097f7bbabf8bb899c0ffe53b514ebb02204232b" }
-btstack-core = { git = "https://github.com/zhuolabs/btstack-gatt-rs", rev = "1097f7bbabf8bb899c0ffe53b514ebb02204232b" }
-btstack-nusb = { git = "https://github.com/zhuolabs/btstack-gatt-rs", rev = "1097f7bbabf8bb899c0ffe53b514ebb02204232b" }
+btstack-gatt = { git = "https://github.com/zhuolabs/btstack-gatt-rs", rev = "18081f4da678ca8bba87084787f4365dd0a233dc" }
+btstack-nusb = { git = "https://github.com/zhuolabs/btstack-gatt-rs", rev = "18081f4da678ca8bba87084787f4365dd0a233dc" }
 uuid = "1"

@@ -35,11 +35,11 @@ Compose MainActivity -> lifecycleScope coroutine
 
 ## USB BTstack flavor
 
-`platform` selects the original Android GATT backend. `btstack` enables the Cargo `btstack` feature and packages `mdoc-transport-btstack`, with btstack-gatt-rs pinned to `1097f7bbabf8bb899c0ffe53b514ebb02204232b`. `BleBackend` is supplied by flavor source sets. Cargo target directories are isolated per variant to prevent feature/output races.
+`platform` selects the original Android GATT backend. `btstack` enables the Cargo `btstack` feature and packages `mdoc-transport-btstack`, with btstack-gatt-rs pinned to `18081f4da678ca8bba87084787f4365dd0a233dc`. `BleBackend` is supplied by flavor source sets. Cargo target directories are isolated per variant to prevent feature/output races.
 
 `UsbManager` enumerates Bluetooth HCI interfaces, requires exactly one candidate, requests permission, and opens `UsbDeviceConnection`. UniFFI `UsbBleHardware` duplicates the borrowed FD synchronously and passes its `OwnedFd` to `NusbHciTransport::from_fd`. `ReaderSession.withUsb` injects the Rust `BtstackBle` directly as `BlePlatform`; document packets do not cross Kotlin callbacks. The existing `mdoc-transport-ble-android` connector and transport supply the upstream traits and shared framing for both backends.
 
-BTstack's public `HciTransport` boundary wraps nusb. Upstream's name-only advertising command is replaced with Flags and the negotiated 128-bit service UUID (Bluetooth little-endian order). Only the exact LE Set Advertising Data command is changed; BTstack retains command completion and startup error handling. This compatibility shim can be removed when upstream exposes custom advertising data.
+The backend calls `GattServer::builder(transport).advertise_service_uuid(uuid)` with the UUID negotiated by mdoc. btstack-gatt-rs owns AD structure encoding, Bluetooth UUID byte order and legacy payload validation, and passes the resulting payload to BTstack normally. GATT registration remains separate from advertising. The app does not inspect or rewrite HCI commands and no longer directly depends on `btstack-core`.
 
 GATT callbacks only update bounded shared state. A single selected peer must subscribe to Server2Client and write State=1 before connect returns. Notifications use upstream's bounded enqueue API with backpressure and transmission-error events. State=2 delivers already accepted frames before reporting orderly termination; malformed frames, queue overflow and transport errors fail the session. Notifications remain enqueue acknowledgements, not delivery acknowledgements.
 

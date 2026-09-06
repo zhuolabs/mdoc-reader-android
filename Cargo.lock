@@ -239,7 +239,7 @@ dependencies = [
 [[package]]
 name = "btstack-core"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=1097f7bbabf8bb899c0ffe53b514ebb02204232b#1097f7bbabf8bb899c0ffe53b514ebb02204232b"
+source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=18081f4da678ca8bba87084787f4365dd0a233dc#18081f4da678ca8bba87084787f4365dd0a233dc"
 dependencies = [
  "btstack-sys",
 ]
@@ -247,7 +247,7 @@ dependencies = [
 [[package]]
 name = "btstack-gatt"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=1097f7bbabf8bb899c0ffe53b514ebb02204232b#1097f7bbabf8bb899c0ffe53b514ebb02204232b"
+source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=18081f4da678ca8bba87084787f4365dd0a233dc#18081f4da678ca8bba87084787f4365dd0a233dc"
 dependencies = [
  "btstack-core",
 ]
@@ -255,7 +255,7 @@ dependencies = [
 [[package]]
 name = "btstack-nusb"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=1097f7bbabf8bb899c0ffe53b514ebb02204232b#1097f7bbabf8bb899c0ffe53b514ebb02204232b"
+source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=18081f4da678ca8bba87084787f4365dd0a233dc#18081f4da678ca8bba87084787f4365dd0a233dc"
 dependencies = [
  "btstack-core",
  "nusb",
@@ -264,7 +264,7 @@ dependencies = [
 [[package]]
 name = "btstack-sys"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=1097f7bbabf8bb899c0ffe53b514ebb02204232b#1097f7bbabf8bb899c0ffe53b514ebb02204232b"
+source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=18081f4da678ca8bba87084787f4365dd0a233dc#18081f4da678ca8bba87084787f4365dd0a233dc"
 dependencies = [
  "cc",
 ]
@@ -1371,7 +1371,6 @@ name = "mdoc-transport-btstack"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "btstack-core",
  "btstack-gatt",
  "btstack-nusb",
  "mdoc-android-platform",
