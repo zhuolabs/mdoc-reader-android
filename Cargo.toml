@@ -1,0 +1,19 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.dependencies]
+anyhow = "1"
+mdoc-core = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "5f81017a3e7c89595b0d5b9743b4bd55d9abb808" }
+mdoc-ui = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "5f81017a3e7c89595b0d5b9743b4bd55d9abb808" }
+nfc-reader = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "5f81017a3e7c89595b0d5b9743b4bd55d9abb808" }
+mdoc-transport = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "5f81017a3e7c89595b0d5b9743b4bd55d9abb808" }
+mdoc-reader-flow = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "5f81017a3e7c89595b0d5b9743b4bd55d9abb808" }
+mdoc-data-retrieval-flow = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "5f81017a3e7c89595b0d5b9743b4bd55d9abb808" }
+mdoc-security = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "5f81017a3e7c89595b0d5b9743b4bd55d9abb808" }
+mdoc-android-platform = { path = "crates/mdoc-android-platform" }
+uniffi = { version = "=0.32.0" }
+
+[profile.release]
+lto = "thin"
+strip = "debuginfo"

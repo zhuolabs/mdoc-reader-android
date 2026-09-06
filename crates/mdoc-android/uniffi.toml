@@ -1,0 +1,4 @@
+[bindings.kotlin]
+package_name = "com.example.mdocreader.rust"
+cdylib_name = "mdoc_android"
+android = true

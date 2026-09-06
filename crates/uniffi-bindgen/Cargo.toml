@@ -1,0 +1,6 @@
+[package]
+name = "mdoc-uniffi-bindgen"
+version = "0.1.0"
+edition = "2024"
+[dependencies]
+uniffi = { workspace = true, features = ["cli"] }

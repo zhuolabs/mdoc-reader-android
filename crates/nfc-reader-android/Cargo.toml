@@ -1,0 +1,8 @@
+[package]
+name = "nfc-reader-android"
+version = "0.1.0"
+edition = "2024"
+[dependencies]
+anyhow.workspace = true
+nfc-reader.workspace = true
+mdoc-android-platform.workspace = true

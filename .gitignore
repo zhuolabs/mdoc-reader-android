@@ -1,0 +1,11 @@
+.upstream/
+target/
+**/.gradle/
+**/.kotlin/
+**/build/
+**/local.properties
+**/.idea/
+**/src/main/jniLibs/
+.artifacts/
+*.iml
+/android/app/src/main/assets/request.json

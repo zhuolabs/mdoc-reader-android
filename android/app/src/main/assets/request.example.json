@@ -1,0 +1,25 @@
+{
+  "iacaCert": "https://issuer.multipaz.org/issuer/signing_certificate?credential_id=mDL",
+  "docRequests": [
+    {
+      "itemsRequest": {
+        "docType": "org.iso.18013.5.1.mDL",
+        "nameSpaces": {
+          "org.iso.18013.5.1": {
+            "family_name": false,
+            "given_name": false,
+            "birth_date": false,
+            "issue_date": false,
+            "expiry_date": false,
+            "issuing_country": false,
+            "issuing_authority": false,
+            "document_number": false,
+            "portrait": false,
+            "driving_privileges": false,
+            "un_distinguishing_sign": false
+          }
+        }
+      }
+    }
+  ]
+}
