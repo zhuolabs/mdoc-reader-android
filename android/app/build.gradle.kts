@@ -30,6 +30,15 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+    flavorDimensions += "bleBackend"
+    productFlavors {
+        create("platform") { dimension = "bleBackend" }
+        create("btstack") {
+            dimension = "bleBackend"
+            applicationIdSuffix = ".btstack"
+            versionNameSuffix = "-btstack"
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -60,15 +69,19 @@ val sdkPath = androidComponents.sdkComponents.sdkDirectory.get().asFile
 androidComponents.onVariants { variant ->
     val capitalized = variant.name.replaceFirstChar { it.uppercase() }
     val release = variant.buildType == "release"
+    val btstack = variant.productFlavors.any { it.second == "btstack" }
     val nativeBuild = tasks.register<GenerateNative>("build${capitalized}Rust") {
         workingDir(rustRoot)
         inputs.files(rustInputs, rustRoot.resolve("Cargo.toml"), rustRoot.resolve("Cargo.lock"))
         outputDirectory.set(layout.buildDirectory.dir("generated/rust/${variant.name}/jniLibs"))
         environment("ANDROID_HOME", sdkPath.absolutePath)
         environment("ANDROID_NDK_HOME", sdkPath.resolve("ndk/27.0.12077973").absolutePath)
+        // Cargo feature outputs must not race when Gradle builds both flavors.
+        environment("CARGO_TARGET_DIR", rustRoot.resolve("target/android/${variant.name}").absolutePath)
         commandLine(listOf("cargo", "ndk", "-t", "arm64-v8a", "-P", "31", "-o",
             outputDirectory.get().asFile.absolutePath, "build", "--locked", "-p", "mdoc-android") +
-            if (release) listOf("--release") else emptyList())
+            (if (btstack) listOf("--features", "btstack") else emptyList()) +
+            (if (release) listOf("--release") else emptyList()))
     }
     val bindings = tasks.register<GenerateNative>("generate${capitalized}UniFFIBindings") {
         dependsOn(nativeBuild)

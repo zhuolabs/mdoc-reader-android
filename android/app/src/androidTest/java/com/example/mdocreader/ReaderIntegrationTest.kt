@@ -27,7 +27,7 @@ class ReaderIntegrationTest {
 
     @Before fun grantHardwarePermissions() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        for (permission in listOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE)) {
+        for (permission in BleBackend.permissions) {
             instrumentation.uiAutomation.grantRuntimePermission(instrumentation.targetContext.packageName, permission)
         }
     }
@@ -76,7 +76,7 @@ class ReaderIntegrationTest {
     @Test fun realGattServiceAdvertisesAndCanBeCancelled() = runBlocking {
         val advertised = CountDownLatch(1)
         val events = StubEvents { if (it == "ble_advertising") advertised.countDown() }
-        val hardware: BleHardware = AndroidBleHardware(compose.activity, events)
+        val hardware = BleBackend.open(compose.activity, events)
         val job = async(Dispatchers.IO) {
             try { hardware.bleConnect(UUID.randomUUID().toString(), ByteArray(16), 120_000u); false }
             catch (_: ReaderException.Failure) { true }
@@ -85,7 +85,7 @@ class ReaderIntegrationTest {
             assertTrue("GATT service registered and BLE advertising started", withContext(Dispatchers.IO) { advertised.await(25, TimeUnit.SECONDS) })
             hardware.shutdown()
             assertTrue(withTimeout(5_000) { job.await() })
-        } finally { hardware.shutdown(); job.cancelAndJoin() }
+        } finally { hardware.shutdown(); job.cancelAndJoin(); hardware.finish() }
     }
 
     @Test fun startCancelAndRestartThroughCompose() {

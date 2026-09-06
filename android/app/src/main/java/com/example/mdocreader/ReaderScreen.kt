@@ -54,12 +54,13 @@ fun ReaderScreen(state: ReaderState, onStart: () -> Unit, onCancel: () -> Unit,
                 Spacer(Modifier.height(8.dp))
                 Text("Read a mobile ID", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(12.dp))
-                Text("Connect with NFC. Receive securely over Bluetooth.", style = MaterialTheme.typography.bodyLarge)
+                Text(BleBackend.description, style = MaterialTheme.typography.bodyLarge)
             }
             item {
                 ElevatedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(if (state.error != null) "Unable to complete reading" else when (state.stage) {
+                            "usb_permission" -> "Allow access to the USB BLE dongle"
                             "certificate_loading" -> "Loading issuer certificate"
                             "nfc_waiting" -> "Hold the presenting device nearby"
                             "nfc_connected" -> "Setting up NFC handover"
@@ -86,7 +87,7 @@ fun ReaderScreen(state: ReaderState, onStart: () -> Unit, onCancel: () -> Unit,
                 Text("Full name, address, individual number, portrait, date of birth, sex, age and local government code. The wallet asks you to approve sharing.")
                 Spacer(Modifier.height(12.dp))
                 Text("Information stays in memory and is cleared when you leave this screen.", style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = onSettings) { Text("NFC & Bluetooth settings") }
+                TextButton(onClick = onSettings) { Text(BleBackend.settingsLabel) }
             }
             state.documents.forEach { doc ->
                 item { Text(doc.docType, style = MaterialTheme.typography.titleSmall) }

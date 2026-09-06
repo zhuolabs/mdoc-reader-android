@@ -237,6 +237,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "btstack-core"
+version = "0.1.0"
+source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=1097f7bbabf8bb899c0ffe53b514ebb02204232b#1097f7bbabf8bb899c0ffe53b514ebb02204232b"
+dependencies = [
+ "btstack-sys",
+]
+
+[[package]]
+name = "btstack-gatt"
+version = "0.1.0"
+source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=1097f7bbabf8bb899c0ffe53b514ebb02204232b#1097f7bbabf8bb899c0ffe53b514ebb02204232b"
+dependencies = [
+ "btstack-core",
+]
+
+[[package]]
+name = "btstack-nusb"
+version = "0.1.0"
+source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=1097f7bbabf8bb899c0ffe53b514ebb02204232b#1097f7bbabf8bb899c0ffe53b514ebb02204232b"
+dependencies = [
+ "btstack-core",
+ "nusb",
+]
+
+[[package]]
+name = "btstack-sys"
+version = "0.1.0"
+source = "git+https://github.com/zhuolabs/btstack-gatt-rs?rev=1097f7bbabf8bb899c0ffe53b514ebb02204232b#1097f7bbabf8bb899c0ffe53b514ebb02204232b"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1108,6 +1141,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "io-kit-sys"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06d3a048d09fbb6597dbf7c69f40d14df4a49487db1487191618c893fc3b1c26"
+dependencies = [
+ "core-foundation-sys",
+ "mach2",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1176,6 +1219,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
+name = "mach2"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a1b95cd5421ec55b445b5ae102f5ea0e768de1f82bd3001e11f426c269c3aea"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "mdoc-android"
 version = "0.1.0"
 dependencies = [
@@ -1185,6 +1237,7 @@ dependencies = [
  "mdoc-reader-flow",
  "mdoc-security",
  "mdoc-transport-ble-android",
+ "mdoc-transport-btstack",
  "mdoc-ui",
  "mdoc-ui-android",
  "nfc-reader-android",
@@ -1311,6 +1364,18 @@ dependencies = [
  "anyhow",
  "mdoc-android-platform",
  "mdoc-transport",
+]
+
+[[package]]
+name = "mdoc-transport-btstack"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "btstack-core",
+ "btstack-gatt",
+ "btstack-nusb",
+ "mdoc-android-platform",
+ "uuid",
 ]
 
 [[package]]
@@ -1497,6 +1562,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "nusb"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18ef13beb3b3a8fc16fd7aea912ebd3d45dde00a9a5b968d0742297468065845"
+dependencies = [
+ "core-foundation",
+ "core-foundation-sys",
+ "futures-core",
+ "io-kit-sys",
+ "js-sys",
+ "linux-raw-sys",
+ "log",
+ "once_cell",
+ "rustix",
+ "slab",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

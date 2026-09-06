@@ -9,7 +9,42 @@
 - UniFFI: 0.32.0; native code and Kotlin bindings built by Gradle.
 - Request SHA-256: `1700d8ccf759114010d51798351d03de3ee28105af1569a848cfc49a932ff976`.
 
-## Automated validation
+## USB BTstack validation (2026-09-06)
+
+Validated on the Pixel 9a with USB dongle **0411:0374** (Bluetooth Radio). ADB `192.168.1.9:46131` and the mDNS entry refer to the same physical device; use one serial to avoid duplicate test runs.
+
+- Both `platformDebug` and `btstackDebug` APKs built successfully, including generated UniFFI bindings. Both flavor lint tasks: **0 errors, 17 warnings**.
+- Rust workspace: **8 tests passed**, including negotiated UUID advertising byte order and preserving queued response frames when State=2 arrives.
+- Formatting and `cargo clippy -p mdoc-transport-btstack --all-targets --locked -- -D warnings`: passed. Workspace-wide strict Clippy encounters a pre-existing `collapsible_if` warning in `mdoc-ui-android/src/lib.rs`; this change leaves that unrelated code untouched.
+- `ReaderIntegrationTest`: **4 tests passed per flavor**. USB startup exercises the actual dongle and controller-confirmed advertising; Compose exercises the direct Rust USB constructor, NFC waiting, cancel and restart.
+- `UsbGattWireTest` plus `scripts/verify_usb_mdoc.py`: **passed two rounds in one app process**, with server shutdown, USB release and restart between rounds. A Windows PC BLE central found the test UUID in advertising, discovered GATT, read the 16-byte Ident, subscribed, wrote State=1, received 200 ordered notification frames, sent 200 ordered response frames, and wrote State=2. Android validated every received frame and orderly termination. Observed ATT MTU: **527**; shared framing caps characteristic values at 512 bytes.
+- USB permission dialog and transition to NFC waiting were checked on the device. The USB flavor does not request Nearby devices permissions.
+
+The first wire run exposed a race between queued response frames and immediate State=2; the backend now drains accepted frames before reporting orderly termination. Lifecycle testing exposed a closed UniFFI handle during suspended USB cleanup; cleanup is now non-cancellable, clears the UI handle first, and gates restart until complete.
+
+### Reproduce USB tests
+
+Build and install the app and test APK. Open the USB app once, tap Start reading, allow USB access, and cancel. Retain USB permission by reinstalling rather than uninstalling.
+
+```powershell
+./android/gradlew.bat -p android :app:assembleBtstackDebug :app:assembleBtstackDebugAndroidTest
+android install --apks=android/app/build/outputs/apk/btstack/debug/app-btstack-debug.apk --device=192.168.1.9:46131
+android install --apks=android/app/build/outputs/apk/androidTest/btstack/debug/app-btstack-debug-androidTest.apk --device=192.168.1.9:46131
+adb -s 192.168.1.9:46131 shell am force-stop com.android.cli.interact.instrumentation
+adb -s 192.168.1.9:46131 shell am instrument -w -e class com.example.mdocreader.ReaderIntegrationTest com.example.mdocreader.btstack.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+For the opt-in wire test, run `uv run scripts/verify_usb_mdoc.py` on a PC with its own Bluetooth adapter, then run this in another terminal within its 120-second discovery timeout:
+
+```powershell
+adb -s 192.168.1.9:46131 shell am instrument -w -e usbWireTest true -e class com.example.mdocreader.UsbGattWireTest com.example.mdocreader.btstack.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The PC script connects only to the dedicated test service UUID. Packets contain synthetic bytes and no personal document. The wire test is skipped unless explicitly enabled. Local terminal records are under ignored `.artifacts/btstack-integration.txt`, `platform-integration.txt`, `btstack-wire.txt`, and `btstack-central.txt`.
+
+Real-wallet NFC handover, consent and authenticated document retrieval remain **unverified**. The synthetic BLE test does not establish wallet interoperability. Physical unplug/replug during an active transfer was not exercised. Release variants are configured but were not used for device validation.
+
+## Original platform validation
 
 | Check | Result | Scope |
 | --- | --- | --- |

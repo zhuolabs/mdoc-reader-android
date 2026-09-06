@@ -32,21 +32,41 @@ From the repository root on Windows:
 
 ```powershell
 $env:JAVA_HOME = 'C:/Program Files/Android/Android Studio/jbr'
-./android/gradlew.bat -p android :app:assembleDebug
+./android/gradlew.bat -p android :app:assemblePlatformDebug
 ```
 
-On other platforms, use `./android/gradlew -p android :app:assembleDebug` and set JAVA_HOME as appropriate.
+On other platforms, use `./android/gradlew -p android :app:assemblePlatformDebug` and set JAVA_HOME as appropriate.
 
 **Gradle builds Rust automatically.** Each variant runs cargo-ndk, generates Kotlin bindings with the workspace's matching UniFFI bindgen, compiles Kotlin and packages the native library. No manual Cargo build, bindgen invocation or `.so` copying is needed. The integration follows the [UniFFI Gradle guide](https://mozilla.github.io/uniffi-rs/0.31/kotlin/gradle.html), using the AGP variant API and proc-macro library metadata.
 
-Debug APK: `android/app/build/outputs/apk/debug/app-debug.apk`.
+Debug APK: `android/app/build/outputs/apk/platform/debug/app-platform-debug.apk`.
 
 `assembleRelease` uses the Rust release profile; release signing is not configured. The device validation described below uses the debug APK.
+
+## BLE backend flavors
+
+| Flavor | BLE hardware | Debug task |
+| --- | --- | --- |
+| `platform` | Android built-in Bluetooth GATT server (existing backend) | `:app:assemblePlatformDebug` |
+| `btstack` | USB BLE dongle using Rust BTstack / nusb | `:app:assembleBtstackDebug` |
+
+Select `platformDebug` or `btstackDebug` in Android Studio's Build Variants panel. `assembleDebug` builds both. Release variants are `platformRelease` and `btstackRelease`.
+
+```powershell
+./android/gradlew.bat -p android :app:assembleBtstackDebug
+android run --apks=android/app/build/outputs/apk/btstack/debug/app-btstack-debug.apk --device=192.168.1.9:46131
+```
+
+The USB app is named **Mdoc Reader USB** (`com.example.mdocreader.btstack`) and can be installed alongside the platform app. Connect exactly one compatible USB Bluetooth HCI dongle, enable NFC, tap **Start reading**, and allow USB access. Built-in Bluetooth and Nearby devices permission are not required by this flavor. The validated dongle is **0411:0374** on a Pixel 9a. Other HCI-class devices are detected, but their controller compatibility depends on BTstack.
+
+The backend pins [btstack-gatt-rs](https://github.com/zhuolabs/btstack-gatt-rs/tree/1097f7bbabf8bb899c0ffe53b514ebb02204232b), following its [Android FD example](https://github.com/zhuolabs/btstack-gatt-rs/tree/1097f7bbabf8bb899c0ffe53b514ebb02204232b/examples/gatt-peripheral-android). Cargo fetches the dependency and its BTstack submodule automatically. Android owns the USB permission and connection; Rust duplicates the FD and runs GATT. The shared Rust `MdocTransportConnector` / `MdocTransport` implementation retains the same framing and verification flow. USB transfers stay in Rust through `ReaderSession.withUsb`.
+
+Cancel, leaving the screen, or unplugging the dongle stops pending reads. Shutdown releases the native USB interface off Main before closing Android's connection. Wait for cleanup before restarting. Only one BTstack runtime is supported per app process.
 
 ## Install and read
 
 ```powershell
-android run --apks=android/app/build/outputs/apk/debug/app-debug.apk --device=adb-51081JEBF12866-ekLo7L._adb-tls-connect._tcp
+android run --apks=android/app/build/outputs/apk/platform/debug/app-platform-debug.apk --device=adb-51081JEBF12866-ekLo7L._adb-tls-connect._tcp
 ```
 
 1. Enable NFC and Bluetooth on the reader and allow **Nearby devices** permission.
@@ -87,9 +107,9 @@ Run it from a lifecycle-owned coroutine. Cancelling that coroutine drops the Rus
 ```powershell
 cargo fmt --all -- --check
 cargo test --workspace --exclude mdoc-uniffi-bindgen --locked
-./android/gradlew.bat -p android :app:assembleDebug :app:lintDebug
+./android/gradlew.bat -p android :app:assemblePlatformDebug :app:lintPlatformDebug
 $env:ANDROID_SERIAL = 'adb-51081JEBF12866-ekLo7L._adb-tls-connect._tcp'
-./android/gradlew.bat -p android :app:connectedDebugAndroidTest
+./android/gradlew.bat -p android :app:connectedPlatformDebugAndroidTest
 ```
 
 The instrumentation suite needs NFC/Bluetooth enabled and internet connectivity. It uses the actual arm64 Rust library and the device's BLE advertiser but does not read a personal document. Stop any active Android CLI layout instrumentation before running it; concurrent UI automation services conflict. Gradle's connected-test runner may uninstall the APK afterward, so reinstall for manual testing.

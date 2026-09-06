@@ -4,6 +4,12 @@ version = "0.1.0"
 edition = "2024"
 [lib]
 crate-type = ["cdylib", "rlib"]
+[features]
+btstack = ["dep:mdoc-transport-btstack"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+mdoc-transport-btstack = { path = "../mdoc-transport-btstack", optional = true }
+
 [dependencies]
 anyhow.workspace = true
 uniffi.workspace = true

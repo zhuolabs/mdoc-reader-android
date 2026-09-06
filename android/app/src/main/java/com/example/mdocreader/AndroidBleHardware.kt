@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicReference
 class AndroidBleHardware(
     context: Context,
     private val events: ReaderEventSink,
-) : BleHardware {
+) : BleSessionHardware {
     private val manager = context.getSystemService(BluetoothManager::class.java)
     private val appContext = context.applicationContext
     private val closed = AtomicBoolean(false)

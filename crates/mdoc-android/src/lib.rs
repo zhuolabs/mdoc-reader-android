@@ -10,6 +10,9 @@ use std::sync::{
 
 uniffi::setup_scaffolding!();
 
+#[cfg(all(feature = "btstack", target_os = "android"))]
+mod usb;
+
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum ReaderError {
     #[error("{details}")]
