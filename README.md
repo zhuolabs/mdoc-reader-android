@@ -63,7 +63,7 @@ Select `platformDebug` or `btstackDebug` in Android Studio's Build Variants pane
 
 ```powershell
 ./android/gradlew.bat -p android :app:assembleBtstackDebug
-android run --apks=android/app/build/outputs/apk/btstack/debug/app-btstack-debug.apk --device=192.168.1.9:46131
+android run --apks=android/app/build/outputs/apk/btstack/debug/app-btstack-debug.apk
 ```
 
 The USB app is named **Mdoc Reader USB** (`com.example.mdocreader.btstack`) and can be installed alongside the platform app. Connect exactly one compatible USB Bluetooth HCI dongle, enable NFC, tap **Start reading**, and allow USB access. Built-in Bluetooth and Nearby devices permission are not required by this flavor. The validated dongle is **0411:0374** on a Pixel 9a. Other HCI-class devices are detected, but their controller compatibility depends on BTstack.
@@ -75,7 +75,7 @@ Cancel, leaving the screen, or unplugging the dongle stops pending reads. Shutdo
 ## Install and read
 
 ```powershell
-android run --apks=android/app/build/outputs/apk/platform/debug/app-platform-debug.apk --device=adb-51081JEBF12866-ekLo7L._adb-tls-connect._tcp
+android run --apks=android/app/build/outputs/apk/platform/debug/app-platform-debug.apk
 ```
 
 1. Enable NFC and Bluetooth on the reader and allow **Nearby devices** permission.
