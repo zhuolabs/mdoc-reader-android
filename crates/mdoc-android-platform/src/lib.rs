@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-/// Blocking NFC operations, called only on the dedicated Rust worker.
+/// Blocking NFC operations, called on Tokio blocking workers.
 /// Implementations must unblock outstanding calls when shutdown() is invoked.
 pub trait NfcPlatform: Send + Sync {
     fn nfc_connect(&self, timeout_ms: u64) -> Result<bool>;
@@ -8,7 +8,7 @@ pub trait NfcPlatform: Send + Sync {
     fn shutdown(&self);
 }
 
-/// Blocking BLE operations, called only on the dedicated Rust worker.
+/// Blocking BLE operations, called on Tokio blocking workers.
 /// Implementations must unblock outstanding calls when shutdown() is invoked.
 pub trait BlePlatform: Send + Sync {
     fn ble_connect(&self, uuid: String, ident: Vec<u8>, timeout_ms: u64) -> Result<u16>;

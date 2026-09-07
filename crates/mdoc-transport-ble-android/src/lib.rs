@@ -20,7 +20,13 @@ impl MdocTransportConnector for AndroidBleConnector {
     type Transport = AndroidBleTransport;
     type Params = BleTransportParams;
     async fn connect(&self, params: BleTransportParams) -> mdoc_transport::Result<Self::Transport> {
-        self.connect_platform(params)
+        let connector = Self {
+            platform: self.platform.clone(),
+            events: self.events.clone(),
+        };
+        tokio::task::spawn_blocking(move || connector.connect_platform(params))
+            .await
+            .map_err(|e| backend_error("connect", e.into()))?
             .map_err(|e| backend_error("connect", e))
     }
 }
@@ -95,11 +101,24 @@ impl PacketAssembler {
 }
 impl MdocTransport for AndroidBleTransport {
     async fn send(&mut self, message: &[u8]) -> mdoc_transport::Result<()> {
-        self.send_platform(message)
+        let mut transport = Self {
+            platform: self.platform.clone(),
+            mtu: self.mtu,
+        };
+        let message = message.to_vec();
+        tokio::task::spawn_blocking(move || transport.send_platform(&message))
+            .await
+            .map_err(|e| backend_error("send", e.into()))?
             .map_err(|e| backend_error("send", e))
     }
     async fn receive_packets(&mut self) -> mdoc_transport::Result<Vec<Vec<u8>>> {
-        self.receive_platform()
+        let mut transport = Self {
+            platform: self.platform.clone(),
+            mtu: self.mtu,
+        };
+        tokio::task::spawn_blocking(move || transport.receive_platform())
+            .await
+            .map_err(|e| backend_error("receive", e.into()))?
             .map_err(|e| backend_error("receive", e))
     }
 }

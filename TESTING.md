@@ -1,5 +1,18 @@
 # Device testing
 
+## Upstream API and Send migration (2026-09-08)
+
+Updated mdoc-reader to `bc973b1d1b58da55f3c99779b72f7e951e7911ef`. The reader explicitly requires a trusted issuer, retains CRL/MSO revocation checks, consumes `VerifiedMdocResponse`, and preserves backend error sources in typed transport errors.
+
+The Send flow now runs on a shared Tokio runtime through UniFFI, with synchronous NFC/BLE calls on the blocking pool. Per-read threads/runtimes, result channels and cancellation polling were removed.
+
+- Rust workspace: **11 tests passed**. New regression coverage exercises success/error cleanup, single-use sessions, cancellation before starting, explicit cancellation and future drop during blocking NFC/BLE waits, and overall timeout aborting an async flow. These tests use local hardware stubs and a virtual clock, without certificates or network access.
+- Both `platformDebug` and `btstackDebug`: application and instrumentation APK builds passed; JVM unit tests passed (**1 per flavor**); lint passed with **0 errors, 17 existing warnings per flavor**.
+- `cargo fmt --all -- --check` and `git diff --check`: passed.
+- No device was connected (`adb devices -l` was empty). Instrumentation, USB wire traffic and real wallet presentation were **not rerun** for this migration. Earlier physical-device results below describe the preceding implementation.
+
+Local build records: `.artifacts/api-build.log`, `.artifacts/send-build.log`, `.artifacts/send-tests.log`.
+
 ## Test environment
 
 - Date: 2026-09-06.

@@ -8,14 +8,17 @@ pub struct AndroidNfcTag(Arc<dyn NfcPlatform>);
 impl NfcReader for AndroidNfcReader {
     type NfcTag<'a> = AndroidNfcTag;
     async fn connect(&mut self, timeout: Duration) -> anyhow::Result<Option<AndroidNfcTag>> {
-        Ok(self
-            .0
-            .nfc_connect(timeout.as_millis().try_into()?)?
-            .then(|| AndroidNfcTag(self.0.clone())))
+        let platform = self.0.clone();
+        let timeout_ms = timeout.as_millis().try_into()?;
+        let connected =
+            tokio::task::spawn_blocking(move || platform.nfc_connect(timeout_ms)).await??;
+        Ok(connected.then(|| AndroidNfcTag(self.0.clone())))
     }
 }
 impl NfcTag for AndroidNfcTag {
     async fn transceive(&mut self, data: &[u8]) -> anyhow::Result<Vec<u8>> {
-        self.0.nfc_transceive(data.to_vec())
+        let platform = self.0.clone();
+        let command = data.to_vec();
+        tokio::task::spawn_blocking(move || platform.nfc_transceive(command)).await?
     }
 }

@@ -59,7 +59,7 @@ impl ReaderSession {
             nfc: Arc::new(NfcAdapter(nfc)),
             ble: ble.0.clone(),
             events: Arc::new(EventAdapter(events)),
-            cancelled: Arc::new(AtomicBool::new(false)),
+            cancelled: CancellationToken::new(),
             started: AtomicBool::new(false),
         })
     }

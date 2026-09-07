@@ -92,7 +92,7 @@ The repository includes `android/app/src/main/assets/request.example.json`, copi
 
 To use a private request, create `android/app/src/main/assets/request.json`. This file is ignored by Git. When both files are packaged, the app loads `request.json`; when it is absent, the app loads `request.example.json`. Rebuild after adding or changing either asset. Never commit a request containing private configuration.
 
-Issuer certificate, issuer signature, device authentication and revocation processing are delegated to upstream Rust without enabling skip flags. The response must also have success status and contain documents. Revocation coverage depends on what the document supplies; upstream does not expose a detailed verification report through this API.
+Issuer certificate, issuer signature, device authentication and revocation processing are delegated to upstream Rust with a policy requiring a trusted issuer and enabling both revocation checks. The response must also have success status and contain documents. Revocation coverage depends on what the document supplies; upstream does not expose a detailed verification report through this API.
 
 Personal attributes are not persisted or logged. Results are cleared on leaving the screen. Screenshots and Android backup are disabled for the app. UI and documentation are English; document values are shown as received.
 
@@ -109,7 +109,7 @@ try {
 }
 ```
 
-Run it from a lifecycle-owned coroutine. Cancelling that coroutine drops the Rust Future and shuts down hardware waits. Android callbacks run on a dedicated Rust worker; UI updates are dispatched to Main. Create a new session and hardware adapter for each read.
+Run it from a lifecycle-owned coroutine. Cancelling that coroutine drops the Rust Future and shuts down hardware waits. Rust schedules the Send flow on Tokio and blocking NFC/BLE operations on its blocking pool; UI updates are dispatched to Main. Create a new session and hardware adapter for each read.
 
 ## Development checks
 

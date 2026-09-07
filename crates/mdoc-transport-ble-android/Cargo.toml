@@ -6,3 +6,4 @@ edition = "2024"
 anyhow.workspace = true
 mdoc-transport.workspace = true
 mdoc-android-platform.workspace = true
+tokio = { version = "1", features = ["rt"] }

@@ -1,0 +1,196 @@
+use super::*;
+use std::sync::{Condvar, Mutex};
+use std::time::Duration;
+use tokio::sync::Notify;
+
+#[derive(Default)]
+struct Hardware {
+    closed: Mutex<bool>,
+    released: Condvar,
+    entered: Notify,
+    exited: Notify,
+}
+impl NfcHardware for Hardware {
+    fn nfc_connect(&self, _: u64) -> Result<bool, ReaderError> {
+        self.entered.notify_one();
+        let (closed, _) = self
+            .released
+            .wait_timeout_while(
+                self.closed.lock().unwrap(),
+                Duration::from_secs(5),
+                |closed| !*closed,
+            )
+            .unwrap();
+        let was_closed = *closed;
+        self.exited.notify_one();
+        assert!(was_closed, "Shutdown must release blocking hardware");
+        Err(anyhow::anyhow!("Cancelled").into())
+    }
+    fn nfc_transceive(&self, _: Vec<u8>) -> Result<Vec<u8>, ReaderError> {
+        unreachable!()
+    }
+    fn shutdown(&self) {
+        *self.closed.lock().unwrap() = true;
+        self.released.notify_all();
+    }
+}
+impl BleHardware for Hardware {
+    fn ble_connect(&self, _: String, _: Vec<u8>, _: u64) -> Result<u16, ReaderError> {
+        Ok(23)
+    }
+    fn ble_send(&self, _: Vec<u8>) -> Result<(), ReaderError> {
+        Ok(())
+    }
+    fn ble_receive(&self, timeout: u64) -> Result<Vec<u8>, ReaderError> {
+        self.nfc_connect(timeout).map(|_| vec![])
+    }
+    fn shutdown(&self) {
+        NfcHardware::shutdown(self);
+    }
+}
+impl ReaderEventSink for Hardware {
+    fn on_event(&self, _: String) {}
+}
+
+fn session() -> (Arc<ReaderSession>, Arc<Hardware>, Arc<Hardware>) {
+    let nfc = Arc::new(Hardware::default());
+    let ble = Arc::new(Hardware::default());
+    (
+        ReaderSession::new(nfc.clone(), ble.clone(), ble.clone()),
+        nfc,
+        ble,
+    )
+}
+
+#[tokio::test]
+async fn success_and_failure_close_hardware_and_sessions_are_single_use() {
+    for success in [false, true] {
+        let (reader, nfc, ble) = session();
+        let result = reader
+            .read_with(async move {
+                if success {
+                    Ok("result".into())
+                } else {
+                    anyhow::bail!("test failure")
+                }
+            })
+            .await;
+        assert_eq!(result.is_ok(), success);
+        assert!(*nfc.closed.lock().unwrap());
+        assert!(*ble.closed.lock().unwrap());
+        assert!(
+            reader
+                .read("{}".into())
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("already used")
+        );
+    }
+}
+
+#[tokio::test]
+async fn cancellation_before_read_never_polls_flow() {
+    let (reader, _, _) = session();
+    reader.cancel();
+    let result = reader
+        .read_with(async { panic!("Cancelled flow must not start") })
+        .await;
+    assert!(result.unwrap_err().to_string().contains("Cancelled"));
+}
+
+#[tokio::test]
+async fn cancellation_and_future_drop_release_blocking_hardware() {
+    use mdoc_transport::{BleTransportParams, MdocTransport, MdocTransportConnector};
+    use nfc_reader::NfcReader;
+    // A single-thread executor proves the blocking callback does not prevent
+    // the caller from resuming and cancelling the session.
+    for (drop_future, use_ble) in [(false, false), (true, false), (false, true), (true, true)] {
+        let (reader, nfc, ble) = session();
+        let waiting = if use_ble { ble.clone() } else { nfc.clone() };
+        let connector = mdoc_transport_ble_android::AndroidBleConnector {
+            platform: reader.ble.clone(),
+            events: reader.events.clone(),
+        };
+        let owner = reader.clone();
+        let mut adapter = nfc_reader_android::AndroidNfcReader(reader.nfc.clone());
+        let task = tokio::spawn(async move {
+            owner
+                .read_with(async move {
+                    if use_ble {
+                        let mut transport = connector
+                            .connect(BleTransportParams {
+                                service_uuid: "00000000-0000-0000-0000-000000000001"
+                                    .parse()
+                                    .unwrap(),
+                                ident: [0; 16],
+                            })
+                            .await?;
+                        transport.send(&[1, 2, 3]).await?;
+                        transport.receive_packets().await?;
+                    } else {
+                        adapter.connect(Duration::from_secs(5)).await?;
+                    }
+                    Ok(String::new())
+                })
+                .await
+        });
+        tokio::time::timeout(Duration::from_secs(2), waiting.entered.notified())
+            .await
+            .unwrap();
+        if drop_future {
+            task.abort();
+        } else {
+            reader.cancel();
+        }
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .unwrap();
+        if drop_future {
+            assert!(result.unwrap_err().is_cancelled());
+        } else {
+            assert!(
+                result
+                    .unwrap()
+                    .unwrap_err()
+                    .to_string()
+                    .contains("Cancelled")
+            );
+        }
+        tokio::time::timeout(Duration::from_secs(2), waiting.exited.notified())
+            .await
+            .unwrap();
+        assert!(*nfc.closed.lock().unwrap());
+        assert!(*ble.closed.lock().unwrap());
+    }
+}
+
+struct Dropped(Arc<AtomicBool>);
+impl Drop for Dropped {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn overall_timeout_aborts_async_flow_and_closes_hardware() {
+    let (reader, nfc, ble) = session();
+    let dropped = Arc::new(AtomicBool::new(false));
+    let guard = Dropped(dropped.clone());
+    let result = reader
+        .read_with(async move {
+            let _guard = guard;
+            std::future::pending().await
+        })
+        .await;
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("deadline has elapsed")
+    );
+    tokio::task::yield_now().await;
+    assert!(dropped.load(Ordering::SeqCst));
+    assert!(*nfc.closed.lock().unwrap());
+    assert!(*ble.closed.lock().unwrap());
+}

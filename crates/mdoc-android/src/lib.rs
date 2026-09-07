@@ -9,6 +9,8 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
+use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
+
 uniffi::setup_scaffolding!();
 
 #[cfg(all(feature = "btstack", target_os = "android"))]
@@ -27,7 +29,8 @@ impl From<anyhow::Error> for ReaderError {
     }
 }
 
-/// NFC callbacks execute on a Rust worker, never the Kotlin UI thread.
+/// NFC operations execute on Tokio blocking workers, never the Kotlin UI thread.
+/// Shutdown may be called from the caller thread to interrupt pending operations.
 #[uniffi::export(with_foreign)]
 pub trait NfcHardware: Send + Sync {
     fn nfc_connect(&self, timeout_ms: u64) -> Result<bool, ReaderError>;
@@ -35,7 +38,8 @@ pub trait NfcHardware: Send + Sync {
     fn shutdown(&self);
 }
 
-/// BLE callbacks execute on a Rust worker, never the Kotlin UI thread.
+/// BLE operations execute on Tokio blocking workers, never the Kotlin UI thread.
+/// Shutdown may be called from the caller thread to interrupt pending operations.
 #[uniffi::export(with_foreign)]
 pub trait BleHardware: Send + Sync {
     fn ble_connect(
@@ -93,19 +97,13 @@ pub struct ReaderSession {
     nfc: Arc<dyn NfcPlatform>,
     ble: Arc<dyn BlePlatform>,
     events: Arc<dyn EventSink>,
-    cancelled: Arc<AtomicBool>,
+    cancelled: CancellationToken,
     started: AtomicBool,
 }
-struct Cleanup {
-    nfc: Arc<dyn NfcPlatform>,
-    ble: Arc<dyn BlePlatform>,
-    cancelled: Arc<AtomicBool>,
-}
-impl Drop for Cleanup {
+struct Cleanup<'a>(&'a ReaderSession);
+impl Drop for Cleanup<'_> {
     fn drop(&mut self) {
-        self.cancelled.store(true, Ordering::SeqCst);
-        self.nfc.shutdown();
-        self.ble.shutdown();
+        self.0.cancel();
     }
 }
 
@@ -121,70 +119,54 @@ impl ReaderSession {
             nfc: Arc::new(NfcAdapter(nfc)),
             ble: Arc::new(BleAdapter(ble)),
             events: Arc::new(EventAdapter(events)),
-            cancelled: Arc::new(AtomicBool::new(false)),
+            cancelled: CancellationToken::new(),
             started: AtomicBool::new(false),
         })
     }
     pub fn cancel(&self) {
-        self.cancelled.store(true, Ordering::SeqCst);
+        self.cancelled.cancel();
         self.nfc.shutdown();
         self.ble.shutdown();
     }
     /// UniFFI generates suspend fun read(requestJson: String): String.
-    /// Non-Send upstream futures live on a dedicated current-thread runtime.
+    /// Send futures run on Tokio; blocking hardware work uses its blocking pool.
+    #[uniffi::method(async_runtime = "tokio")]
     pub async fn read(&self, request_json: String) -> Result<String, ReaderError> {
+        self.read_with(run(
+            self.nfc.clone(),
+            self.ble.clone(),
+            self.events.clone(),
+            request_json,
+        ))
+        .await
+    }
+}
+
+impl ReaderSession {
+    async fn read_with(
+        &self,
+        flow: impl std::future::Future<Output = Result<String>> + Send + 'static,
+    ) -> Result<String, ReaderError> {
         if self.started.swap(true, Ordering::SeqCst) {
             return Err(ReaderError::Failure {
                 details: "Session already used".into(),
             });
         }
-        let _cancel_on_drop = Cleanup {
-            nfc: self.nfc.clone(),
-            ble: self.ble.clone(),
-            cancelled: self.cancelled.clone(),
-        };
-        let nfc = self.nfc.clone();
-        let ble = self.ble.clone();
-        let events = self.events.clone();
-        let cancelled = self.cancelled.clone();
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        std::thread::Builder::new()
-            .name("mdoc-reader".into())
-            .spawn(move || {
-                let _cleanup = Cleanup {
-                    nfc: nfc.clone(),
-                    ble: ble.clone(),
-                    cancelled: cancelled.clone(),
-                };
-                let result =
-                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<String> {
-                        let runtime = tokio::runtime::Builder::new_current_thread()
-                            .enable_all()
-                            .build()?;
-                        runtime.block_on(async {
-                            tokio::select! {
-                                biased;
-                                _ = async { loop {
-                                    if cancelled.load(Ordering::SeqCst) { break; }
-                                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                                }} => anyhow::bail!("Cancelled"),
-                                result = tokio::time::timeout(
-                                    std::time::Duration::from_secs(420),
-                                    run(nfc, ble, events, &request_json),
-                                ) => result?,
-                            }
-                        })
-                    }));
-                let result =
-                    result.unwrap_or_else(|_| Err(anyhow::anyhow!("Reader worker failed")));
-                let _ = tx.send(result.map_err(ReaderError::from));
-            })
-            .map_err(|e| ReaderError::Failure {
-                details: e.to_string(),
-            })?;
-        rx.await.map_err(|_| ReaderError::Failure {
-            details: "Reader worker closed".into(),
-        })?
+        let _cleanup = Cleanup(self);
+        if self.cancelled.is_cancelled() {
+            return Err(anyhow::anyhow!("Cancelled").into());
+        }
+        // Aborting the UniFFI future also aborts the spawned flow. Hardware
+        // shutdown releases blocking operations, which cannot be task-aborted.
+        let task = AbortOnDropHandle::new(tokio::spawn(flow));
+        let result: Result<String> = async {
+            tokio::select! {
+                biased;
+                _ = self.cancelled.cancelled() => anyhow::bail!("Cancelled"),
+                result = tokio::time::timeout(std::time::Duration::from_secs(420), task) => result??,
+            }
+        }.await;
+        result.map_err(ReaderError::from)
     }
 }
 
@@ -237,9 +219,9 @@ async fn run(
     nfc_platform: Arc<dyn NfcPlatform>,
     ble_platform: Arc<dyn BlePlatform>,
     events: Arc<dyn EventSink>,
-    raw: &str,
+    raw: String,
 ) -> Result<String> {
-    let (request, url) = parse_request(raw)?;
+    let (request, url) = parse_request(&raw)?;
     events.on_event("certificate_loading".into());
     let certificate = tokio::time::timeout(
         std::time::Duration::from_secs(30),
@@ -311,3 +293,6 @@ mod tests {
         assert!(parse_request(&REQUEST.replace("false", "\"false\"")).is_err());
     }
 }
+
+#[cfg(test)]
+mod session_tests;
