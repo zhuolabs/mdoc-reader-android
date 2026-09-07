@@ -1,6 +1,7 @@
 use anyhow::{Result, ensure};
 use mdoc_android_platform::{BlePlatform, EventSink, NfcPlatform};
 use mdoc_core::{CoseKeyPrivate, DeviceRequest, NameSpaces};
+use mdoc_reader_flow::{IssuerTrust, ReaderOptions, TrustPolicy, VerificationPolicy};
 use mdoc_ui::MdocResultUi;
 use serde::Deserialize;
 use std::sync::{
@@ -259,14 +260,20 @@ async fn run(
         &ble,
         &CoseKeyPrivate::new()?,
         &request,
-        false,
-        false,
+        &ReaderOptions {
+            service_uuid: None,
+            verification: VerificationPolicy::new(TrustPolicy::RequireTrustedIssuer {
+                iaca: &certificate,
+            }),
+        },
         Some(&ui),
-        Some(&certificate),
-        None,
     )
     .await?;
-    ui.render_result(&response, &())?;
+    ensure!(
+        response.issuer_trust() == IssuerTrust::Trusted,
+        "No trusted documents returned"
+    );
+    ui.render_result(response.response(), &())?;
     ui.result
         .ok_or_else(|| anyhow::anyhow!("No rendered result"))
 }

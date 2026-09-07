@@ -1,6 +1,6 @@
 use anyhow::{Result, ensure};
 use mdoc_android_platform::{BlePlatform, EventSink};
-use mdoc_transport::{BleTransportParams, MdocTransport, MdocTransportConnector};
+use mdoc_transport::{BleTransportParams, MdocTransport, MdocTransportConnector, TransportError};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -19,7 +19,21 @@ pub struct AndroidBleTransport {
 impl MdocTransportConnector for AndroidBleConnector {
     type Transport = AndroidBleTransport;
     type Params = BleTransportParams;
-    async fn connect(&self, params: BleTransportParams) -> Result<Self::Transport> {
+    async fn connect(&self, params: BleTransportParams) -> mdoc_transport::Result<Self::Transport> {
+        self.connect_platform(params)
+            .map_err(|e| backend_error("connect", e))
+    }
+}
+
+fn backend_error(operation: &'static str, error: anyhow::Error) -> TransportError {
+    TransportError::Backend {
+        operation,
+        source: error.into_boxed_dyn_error(),
+    }
+}
+
+impl AndroidBleConnector {
+    fn connect_platform(&self, params: BleTransportParams) -> Result<AndroidBleTransport> {
         self.events.on_event("ble_connecting".into());
         let mtu = self.platform.ble_connect(
             params.service_uuid.to_string(),
@@ -80,13 +94,23 @@ impl PacketAssembler {
     }
 }
 impl MdocTransport for AndroidBleTransport {
-    async fn send(&mut self, message: &[u8]) -> Result<()> {
+    async fn send(&mut self, message: &[u8]) -> mdoc_transport::Result<()> {
+        self.send_platform(message)
+            .map_err(|e| backend_error("send", e))
+    }
+    async fn receive_packets(&mut self) -> mdoc_transport::Result<Vec<Vec<u8>>> {
+        self.receive_platform()
+            .map_err(|e| backend_error("receive", e))
+    }
+}
+impl AndroidBleTransport {
+    fn send_platform(&mut self, message: &[u8]) -> Result<()> {
         for chunk in encode_chunks(message, self.mtu)? {
             self.platform.ble_send(chunk)?;
         }
         Ok(())
     }
-    async fn receive_packets(&mut self) -> Result<Vec<Vec<u8>>> {
+    fn receive_platform(&mut self) -> Result<Vec<Vec<u8>>> {
         let deadline = Instant::now() + Duration::from_secs(120);
         let mut assembler = PacketAssembler::default();
         loop {

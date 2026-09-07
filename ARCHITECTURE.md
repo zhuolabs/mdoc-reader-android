@@ -2,7 +2,7 @@
 
 ## Scope
 
-A Jetpack Compose Android application for reading an mdoc through NFC negotiated handover followed by BLE retrieval. Protocol and verification logic comes from https://github.com/zhuolabs/mdoc-reader, pinned to revision `5f81017a3e7c89595b0d5b9743b4bd55d9abb808` through Cargo git dependencies.
+A Jetpack Compose Android application for reading an mdoc through NFC negotiated handover followed by BLE retrieval. Protocol and verification logic comes from https://github.com/zhuolabs/mdoc-reader, pinned to revision `bc973b1d1b58da55f3c99779b72f7e951e7911ef` through Cargo git dependencies.
 
 The Android reader is the BLE peripheral / GATT server. The presenting wallet is the BLE central / GATT client. NFC uses Android reader mode and IsoDep. This reads mobile documents presented by a compatible wallet, not a physical My Number Card. QR engagement, static handover and reader-central BLE mode are outside the initial scope. All documentation and application UI are in English; received attribute values remain unchanged.
 
@@ -70,7 +70,7 @@ Connection readiness requires a peer, Server2Client CCCD subscription and State 
 
 `android/app/src/main/assets/request.example.json` is the tracked default request. An ignored `request.json` in the same directory overrides it at runtime, allowing private request configuration to remain local. The selected request must contain an HTTPS IACA URL. INTERNET is used for certificates and revocation information; Android 12+ CONNECT and ADVERTISE permissions are requested at runtime by the platform flavor; the USB flavor requests USB device access instead.
 
-Cryptography, issuer authentication, device authentication, certificate validation and revocation processing remain in upstream Rust. Both skip flags are false. The UI adapter additionally rejects nonzero response status and absent/empty documents. Upstream may report MSO revocation as NotChecked when information is unavailable and exposes validation only as success/error, so the UI does not claim every revocation check was completed. Per-document/per-element errors are displayed separately.
+Cryptography, issuer authentication, device authentication, certificate validation and revocation processing remain in upstream Rust. The verification policy requires a trusted issuer and enables both CRL and MSO revocation checks. The UI adapter additionally rejects nonzero response status and absent/empty documents. Upstream may report MSO revocation as NotChecked when information is unavailable and exposes validation only as success/error, so the UI does not claim every revocation check was completed. Per-document/per-element errors are displayed separately.
 
 Attributes and portraits remain in memory. No APDUs, decrypted documents or personal attributes are written to logs or disk. Android backup is disabled and FLAG_SECURE protects the result screen. The app does not register a Rust logger, since upstream debug/info logs can contain protocol information.
 
