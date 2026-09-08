@@ -6,7 +6,7 @@ pub struct AndroidNfcReader(pub Arc<dyn NfcPlatform>);
 pub struct AndroidNfcTag(Arc<dyn NfcPlatform>);
 
 impl NfcReader for AndroidNfcReader {
-    type NfcTag<'a> = AndroidNfcTag;
+    type Tag = AndroidNfcTag;
     async fn connect(&mut self, timeout: Duration) -> anyhow::Result<Option<AndroidNfcTag>> {
         let platform = self.0.clone();
         let timeout_ms = timeout.as_millis().try_into()?;
