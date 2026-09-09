@@ -2,7 +2,7 @@
 
 ## Coordinated reader-stack refactor (2026-09-09)
 
-Current checks: both Rust workspaces pass formatting, Clippy and all workspace tests; both Android flavors compile including instrumentation sources, pass JVM unit tests and lint. The Android workspace retains the existing generic-array deprecation warnings in upstream security code.
+Current checks: both Rust workspaces pass formatting and Clippy. Upstream passes 92 Rust tests; the Android workspace with local upstream dependencies passes 91. Both Android flavors compile including instrumentation sources, pass one JVM unit test each and pass lint. A separate checkout of the committed Git dependency configuration also passes `cargo check --workspace --locked --offline`; its lockfile excludes upstream development-only dependencies. The Android workspace retains the existing generic-array deprecation warnings in upstream security code.
 
 The results below this section are historical; they do not validate the current hardware behavior. The refactor moves common BLE tests, NFC ownership tests, request/result tests and session cancellation tests to upstream. Both platform and btstack Kotlin source sets and their instrumentation sources are compiled against freshly generated UniFFI bindings. A Pixel 9a was connected, but Gradle could not install the APK for its active Android user: `Shell does not have permission to access user 10`. Zero instrumentation tests ran. No Android user was switched and no access restriction was changed. Repeat connected tests from a user that permits ADB installation.
 
