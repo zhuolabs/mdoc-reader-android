@@ -2,8 +2,8 @@ package com.example.mdocreader
 
 import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
-import com.example.mdocreader.rust.ReaderEventSink
-import com.example.mdocreader.rust.ReaderException
+import uniffi.mdoc_reader_ffi.ReaderEventSink
+import uniffi.mdoc_reader_ffi.ReaderException
 import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue

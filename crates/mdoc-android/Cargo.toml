@@ -5,31 +5,17 @@ edition = "2024"
 [lib]
 crate-type = ["cdylib", "rlib"]
 [features]
-btstack = ["dep:mdoc-transport-btstack"]
+btstack = ["dep:mdoc-transport-btstack", "dep:mdoc-android-platform", "dep:async-trait", "dep:tokio", "dep:nfc-reader", "dep:mdoc-transport-ble", "dep:anyhow"]
+
+[dependencies]
+uniffi.workspace = true
+mdoc-reader-ffi.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 mdoc-transport-btstack = { path = "../mdoc-transport-btstack", optional = true }
-
-[dependencies]
-anyhow.workspace = true
-uniffi = { workspace = true, features = ["tokio"] }
-mdoc-core.workspace = true
-mdoc-reader-flow.workspace = true
-mdoc-security.workspace = true
-mdoc-ui.workspace = true
-mdoc-android-platform.workspace = true
-nfc-reader.workspace = true
-mdoc-transport-ble.workspace = true
-async-trait = "0.1"
-mdoc-ui-android = { path = "../mdoc-ui-android" }
-thiserror = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-url = "2"
-tokio = { version = "1", features = ["rt-multi-thread", "time", "net", "sync", "macros"] }
-tokio-util = { version = "0.7", features = ["rt"] }
-
-[dev-dependencies]
-mdoc-transport.workspace = true
-nfc-reader.workspace = true
-tokio = { version = "1", features = ["test-util"] }
+mdoc-android-platform = { workspace = true, optional = true }
+mdoc-transport-ble = { workspace = true, optional = true }
+nfc-reader = { workspace = true, optional = true }
+anyhow = { workspace = true, optional = true }
+async-trait = { version = "0.1", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread"], optional = true }

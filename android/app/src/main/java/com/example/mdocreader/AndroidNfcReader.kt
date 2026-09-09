@@ -24,6 +24,7 @@ class AndroidNfcReader(
     private val adapter: NfcAdapter,
 ) : NfcSessionHardware {
     private val closed = AtomicBoolean(false)
+    private val lock = Any()
     private val tags = ArrayBlockingQueue<Tag>(1)
     @Volatile private var isoDep: IsoDep? = null
 
@@ -39,26 +40,39 @@ class AndroidNfcReader(
         )
     }
 
-    override suspend fun connect(timeoutMs: ULong): Boolean = runInterruptible(Dispatchers.IO) { translateErrors {
-        val tag = awaitTag(timeoutMs.toLong()) ?: return@translateErrors false
-        val connection = IsoDep.get(tag)
-            ?: throw NfcBackendException.Failure("This NFC tag does not support IsoDep")
-        checkOpen()
-        isoDep = connection
-        connection.connect()
-        connection.timeout = 10_000
-        checkOpen()
-        true
-    } }
+    override suspend fun connect(timeoutMs: ULong): Boolean = runInterruptible(Dispatchers.IO) {
+        translateErrors {
+            val tag = awaitTag(timeoutMs.toLong()) ?: return@translateErrors false
+            val connection = IsoDep.get(tag)
+                ?: throw NfcBackendException.Failure("This NFC tag does not support IsoDep")
+            synchronized(lock) {
+                checkOpen()
+                isoDep = connection
+            }
+            try {
+                connection.connect()
+                connection.timeout = 10_000
+                checkOpen()
+                true
+            } catch (error: Throwable) {
+                runCatching { connection.close() }
+                throw error
+            }
+        }
+    }
 
-    override suspend fun transceive(command: ByteArray): ByteArray = runInterruptible(Dispatchers.IO) { translateErrors {
-        (isoDep ?: throw NfcBackendException.Failure("NFC is not connected")).transceive(command)
-    } }
+    override suspend fun transceive(command: ByteArray): ByteArray = runInterruptible(Dispatchers.IO) {
+        translateErrors {
+            (isoDep ?: throw NfcBackendException.Failure("NFC is not connected")).transceive(command)
+        }
+    }
 
     override fun shutdown() {
-        if (!closed.compareAndSet(false, true)) return
-        runCatching { isoDep?.close() }
-        isoDep = null
+        val connection = synchronized(lock) {
+            if (!closed.compareAndSet(false, true)) return
+            isoDep.also { isoDep = null }
+        }
+        runCatching { connection?.close() }
         tags.clear()
         runCatching { adapter.disableReaderMode(activity) }
     }

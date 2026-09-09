@@ -1,10 +1,15 @@
 use super::*;
+use anyhow::Result;
 use mdoc_android_platform::BlePlatform;
+use mdoc_android_platform::EventSink;
+use mdoc_transport_ble::BleBackend;
 use mdoc_transport_ble::{
     BleBackendError, BleBackendParams, BleConnectionInfo, BleReceiveOrdering,
 };
 use mdoc_transport_btstack::BtstackBle;
+use nfc_reader::NfcBackend;
 use std::os::fd::BorrowedFd;
+use std::sync::Arc;
 
 #[derive(uniffi::Object)]
 pub struct UsbBleHardware(Arc<BtstackBle>);
@@ -51,21 +56,14 @@ impl UsbBleHardware {
 }
 
 #[uniffi::export]
-impl ReaderSession {
+impl UsbBleHardware {
     /// The USB backend stays entirely in Rust during document transfer.
-    #[uniffi::constructor]
-    pub fn with_usb(
+    pub fn reader_session(
+        &self,
         nfc: Arc<dyn NfcBackend>,
-        ble: Arc<UsbBleHardware>,
         events: Arc<dyn ReaderEventSink>,
-    ) -> Arc<Self> {
-        Arc::new(Self {
-            nfc,
-            ble: Arc::new(UsbBackend(ble.0.clone())),
-            events: Arc::new(EventAdapter(events)),
-            cancelled: CancellationToken::new(),
-            started: AtomicBool::new(false),
-        })
+    ) -> Arc<ReaderSession> {
+        ReaderSession::new(nfc, Arc::new(UsbBackend(self.0.clone())), events)
     }
 }
 
@@ -112,5 +110,12 @@ impl BleBackend for UsbBackend {
 fn usb_error(error: impl std::fmt::Display) -> BleBackendError {
     BleBackendError::Failure {
         details: error.to_string(),
+    }
+}
+
+struct EventAdapter(Arc<dyn ReaderEventSink>);
+impl EventSink for EventAdapter {
+    fn on_event(&self, event: String) {
+        self.0.on_event(event);
     }
 }

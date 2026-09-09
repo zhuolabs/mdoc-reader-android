@@ -1,5 +1,14 @@
 # Device testing
 
+## Coordinated reader-stack refactor (2026-09-09)
+
+Current checks: both Rust workspaces pass formatting, Clippy and all workspace tests; both Android flavors compile including instrumentation sources, pass JVM unit tests and lint. The Android workspace retains the existing generic-array deprecation warnings in upstream security code.
+
+The results below this section are historical; they do not validate the current hardware behavior. The refactor moves common BLE tests, NFC ownership tests, request/result tests and session cancellation tests to upstream. Both platform and btstack Kotlin source sets and their instrumentation sources are compiled against freshly generated UniFFI bindings. A Pixel 9a was connected, but Gradle could not install the APK for its active Android user: `Shell does not have permission to access user 10`. Zero instrumentation tests ran. No Android user was switched and no access restriction was changed. Repeat connected tests from a user that permits ADB installation.
+
+Repeat the manual acceptance flow below for negotiated NFC handover, multi-chunk and large responses, cancellation during NFC/BLE, Bluetooth off, tag removal and activity lifecycle. WinRT service creation, advertising, subscription, raw C2S/S2C IO and physical disconnects also need hardware verification. Automated ordering tests use virtual time and include LAST followed by delayed MORE, multiple MORE, a subsequent LAST and disconnection.
+
+
 ## Upstream API and Send migration (2026-09-08)
 
 Updated mdoc-reader to `bc973b1d1b58da55f3c99779b72f7e951e7911ef`. The reader explicitly requires a trusted issuer, retains CRL/MSO revocation checks, consumes `VerifiedMdocResponse`, and preserves backend error sources in typed transport errors.
@@ -123,7 +132,7 @@ Do not provide personal attribute values when reporting failures. Report the las
 - Upstream controls verification policy and can mark some revocation checks as unavailable. The adapter does not expose a detailed verification report.
 - The reader does not implement a separate reader-authentication credential. Wallets requiring one may reject the request.
 
-## Handoff state
+## Previous handoff state (before the 2026-09-09 refactor)
 
 The final debug APK was reinstalled on the authorized Pixel 9a after testing, with runtime permissions granted. MainActivity was confirmed as the resumed activity. The app is ready for the user to tap **Start reading** and present an mdoc. No real personal document has been read during implementation.
 

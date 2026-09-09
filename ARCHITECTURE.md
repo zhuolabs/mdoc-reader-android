@@ -9,35 +9,30 @@ The Android reader is the BLE peripheral / GATT server. The presenting wallet is
 ## Components
 
 ```text
-Compose MainActivity -> lifecycleScope coroutine
-                           |
-                  UniFFI suspend ReaderSession.read()
-                           |
-                    mdoc-android (cdylib)
-                           |
-                  upstream mdoc-reader-flow
-                  /          |            \
- nfc-reader-android   mdoc-transport-ble-android   mdoc-ui-android
-          |                  |                         |
-          +-------- mdoc-android-platform --------------+
-                             |
-       UniFFI NfcHardware / BleHardware / ReaderEventSink
-                    /            |             \
-       AndroidNfcHardware  AndroidBleHardware  UiEventSink
+Kotlin UI / MainActivity
+    |  upstream UniFFI ReaderSession
+    v
+mdoc-reader-ffi -> native read_mdoc
+    |                    |
+    |               GenericNfcReader -> Kotlin AndroidNfcReader
+    |
+BleMdocTransport -> BleBackend -> Kotlin AndroidBleBackend / Rust USB bridge
 ```
 
-- `nfc-reader-android` implements upstream `NfcReader` and `NfcTag`. It delegates tag waiting and APDU exchange to Kotlin; upstream handles TNEP and connection handover.
-- `mdoc-transport-ble-android` implements `MdocTransportConnector` and `MdocTransport`. It uses upstream's service UUID and Ident, encodes BLE continuation frames, and reconstructs ordered response packets with bounds and deadlines.
-- `mdoc-ui-android` implements `FlowEventUi` and `MdocResultUi<()>`. It converts progress to stable event codes and authenticated attributes to display JSON. ISO/IEC 23220 structured birth dates are unwrapped to their nested full-date value. JPEG/JPEG2000 portraits are converted to bounded PNG images.
-- `mdoc-android-platform` defines independent `NfcPlatform`, `BlePlatform` and `EventSink` Rust interfaces, independent of UniFFI.
-- `mdoc-android` exports a UniFFI `ReaderSession` object and separate `NfcHardware`, `BleHardware` and `ReaderEventSink` foreign traits. It parses the request, downloads the IACA certificate, generates the ephemeral key and executes upstream `read_mdoc`. No hand-written JNI entry points are used.
-- `AndroidNfcHardware` owns Android reader mode and IsoDep. `AndroidBleHardware` owns advertising and the GATT server. `UiEventSink` publishes progress. Each implements only its generated UniFFI interface and can be replaced independently. `MainActivity` is the composition root; `ReaderScreen` renders Compose state.
+- Upstream `nfc-reader` retains its native Send-only, exclusively accessed API with an owned `Tag` associated type. Its optional UniFFI `NfcBackend` and single `GenericNfcReader` adapter preserve native ergonomics without multiple Android forwarding layers.
+- Upstream `mdoc-transport-ble` owns framing, assembly, validation, size limits, operation deadlines and receive ordering. Kotlin implements that crate's async `BleBackend` directly. `BleConnectionInfo` reports usable characteristic bytes, not ATT MTU.
+- Upstream `mdoc-reader-ffi` owns request validation, certificate loading, ephemeral keys, trusted-issuer policy, single-use sessions, cancellation and presentation JSON. The structured `read_mdoc_foreign` entry also returns validated DeviceResponse CBOR. Native `read_mdoc` remains unchanged.
+- `mdoc-android` only packages the shared library and optional USB descriptor bridge. `nfc-reader-android`, `mdoc-transport-ble-android` and `mdoc-ui-android` were removed after migration. Their applicable tests moved upstream.
+- `mdoc-android-platform` retains only the synchronous `BlePlatform` and `EventSink` contract used by the existing USB driver. There is no platform trait layer between Android Kotlin and upstream NFC/BLE.
+- `AndroidNfcReader` owns reader mode and IsoDep; `AndroidBleBackend` owns advertising and GATT. `UiEventSink`, `MainActivity` and `ReaderScreen` retain their existing composition, event codes and UI behavior.
+
+Generated interfaces use `uniffi.nfc_reader`, `uniffi.mdoc_transport_ble` and `uniffi.mdoc_reader_ffi`. Only optional `UsbBleHardware` remains in the Android library's own `com.example.mdocreader.rust` namespace.
 
 ## USB BTstack flavor
 
 `platform` selects the original Android GATT backend. `btstack` enables the Cargo `btstack` feature and packages `mdoc-transport-btstack`, with btstack-gatt-rs pinned to `18081f4da678ca8bba87084787f4365dd0a233dc`. `BleBackend` is supplied by flavor source sets. Cargo target directories are isolated per variant to prevent feature/output races.
 
-`UsbManager` enumerates Bluetooth HCI interfaces, requires exactly one candidate, requests permission, and opens `UsbDeviceConnection`. UniFFI `UsbBleHardware` duplicates the borrowed FD synchronously and passes its `OwnedFd` to `NusbHciTransport::from_fd`. `ReaderSession.withUsb` injects the Rust `BtstackBle` directly as `BlePlatform`; document packets do not cross Kotlin callbacks. The existing `mdoc-transport-ble-android` connector and transport supply the upstream traits and shared framing for both backends.
+`UsbManager` enumerates Bluetooth HCI interfaces, requires exactly one candidate, requests permission, and opens `UsbDeviceConnection`. UniFFI `UsbBleHardware` duplicates the borrowed FD synchronously and passes its `OwnedFd` to `NusbHciTransport::from_fd`. `UsbBleHardware.readerSession` wraps the existing synchronous `BtstackBle` in a thin Rust `BleBackend` bridge; document packets do not cross Kotlin callbacks. Upstream `BleMdocTransport` supplies framing and assembly for both flavors.
 
 The backend calls `GattServer::builder(transport).advertise_service_uuid(uuid)` with the UUID negotiated by mdoc. btstack-gatt-rs owns AD structure encoding, Bluetooth UUID byte order and legacy payload validation, and passes the resulting payload to BTstack normally. GATT registration remains separate from advertising. The app does not inspect or rewrite HCI commands and no longer directly depends on `btstack-core`.
 
@@ -47,9 +42,9 @@ Cancellation sets an atomic flag without blocking Main. Kotlin's non-cancellable
 
 ## Async API and cancellation
 
-UniFFI 0.32.0 proc macros generate `suspend fun read(requestJson: String): String`. Kotlin calls it directly from `lifecycleScope.launch`. UniFFI's Tokio integration supplies a shared runtime, and the Send upstream flow runs as a Tokio task. NFC/BLE adapters await synchronous hardware operations through `spawn_blocking`, keeping both Kotlin Main and the async executor responsive. Android callbacks enqueue data without blocking the UI. No per-read OS thread, runtime, or result channel is needed.
+UniFFI 0.32.0 proc macros generate `suspend fun read(requestJson: String): String`. Kotlin calls it directly from `lifecycleScope.launch`. UniFFI's Tokio integration supplies a shared runtime, and the Send upstream flow runs as a Tokio task. Kotlin BLE waits use bounded coroutine channels; IsoDep uses `runInterruptible(Dispatchers.IO)`. Only the optional synchronous USB driver uses a Rust blocking-worker bridge. Android callbacks enqueue data without blocking the UI. No per-read OS thread, runtime, or result channel is needed.
 
-Each session is single-use. A Rust Future drop guard and `ReaderSession.cancel()` close the Android resources. An abort-on-drop task handle aborts the flow when its UniFFI future is dropped, and a cancellation token wakes async waits immediately. This releases outstanding NFC/BLE waits, including when Kotlin cancels the coroutine. Cancellation and the overall deadline remain responsive during network and blocking hardware waits. Kotlin's finally block releases the UniFFI handle and disables NFC reader mode. Leaving the activity cancels the session and clears results. Generation IDs reject stale progress callbacks.
+Each session is single-use. A Rust Future drop guard, session drop and `ReaderSession.cancel()` close the Android resources. An abort-on-drop task handle aborts the flow when its UniFFI future is dropped, and a cancellation token wakes async waits immediately. This releases outstanding NFC/BLE waits, including when Kotlin cancels the coroutine. Cancellation and the overall deadline remain responsive during network and blocking hardware waits. Kotlin's finally block releases the UniFFI handle and disables NFC reader mode. Leaving the activity cancels the session and clears results. Generation IDs reject stale progress callbacks.
 
 Deadlines: NFC 120 seconds; BLE connection 120 seconds; BLE response 120 seconds; GATT service/advertising/notification operations 10 seconds; initial certificate download 30 seconds; overall asynchronous flow 420 seconds. Synchronous hardware calls have their own deadlines. Response buffering is bounded to 16 MiB / 100,000 packets on Rust and 2,048 queued frames on Android.
 
@@ -64,7 +59,7 @@ The service UUID is generated by upstream and advertised in the handover request
 | Server2Client | 00000007-a123-48ce-896b-4c76973373e6 | Notify |
 | Ident | 00000008-a123-48ce-896b-4c76973373e6 | Read |
 
-Connection readiness requires a peer, Server2Client CCCD subscription and State START (0x01). The platform backend serializes notifications using `onNotificationSent`; the USB backend uses the BTstack queue. Each frame uses 0x01 for continuation or 0x00 for the last frame. Payload size respects ATT MTU minus 3 bytes, minus the one-byte mdoc header, and the 512-byte attribute limit. A single peer is accepted per session. Invalid writes, queue overflow and disconnects fail the session. Advertising and GATT resources are always released.
+Connection readiness requires a peer, Server2Client CCCD subscription and State START (0x01). The platform backend serializes notifications using `onNotificationSent`; the USB backend uses the BTstack queue. Upstream framing uses 0x01 for continuation and 0x00 for LAST. Android reports `min(ATT MTU - 3, 512)` as usable characteristic size; the common layer subtracts only the one-byte mdoc flag. Ordered completes at LAST. WinRT uses the same common transport with Relaxed and a fixed 30 ms grace period for late MORE frames. The defensive SessionData decode/decrypt reorder recovery is retained upstream. A single peer is accepted per session. Invalid writes, queue overflow and disconnects fail the session. Advertising and GATT resources are always released.
 
 ## Request and verification
 
@@ -78,15 +73,11 @@ Attributes and portraits remain in memory. No APDUs, decrypted documents or pers
 
 The [UniFFI Gradle integration guide](https://mozilla.github.io/uniffi-rs/0.31/kotlin/gradle.html) is implemented with AGP's current variant sources API and library metadata instead of UDL.
 
-For each variant, `build<Variant>Rust` invokes cargo-ndk with a locked Cargo dependency graph and Android NDK 27. `generate<Variant>UniFFIBindings` then runs the workspace's version-matched bindgen against that library. Generated Kotlin and native libraries are registered with AGP, so normal `assembleDebug` / `assembleRelease` tasks build and package everything. Outputs live under `app/build/generated`; source files and manifests are Gradle task inputs. No generated Kotlin or native binaries are committed. The initial ABI is arm64-v8a for the authorized Pixel 9a; minSdk is 31 and compile/targetSdk are 36.
+For each variant, `build<Variant>Rust` invokes cargo-ndk with a locked Cargo dependency graph and Android NDK 27. `generate<Variant>UniFFIBindings` then runs the workspace's version-matched bindgen against that library. Generated Kotlin and native libraries are registered with AGP, so normal `assembleDebug` / `assembleRelease` tasks build and package everything. Outputs live under `app/build/generated`; source files and manifests are Gradle task inputs. No generated Kotlin or native binaries are committed. The initial ABI is arm64-v8a for the authorized Pixel 9a; minSdk is 27 and compile/targetSdk are 36.
 
-## Implementation plan and commit checkpoints
+## Refactoring checkpoints
 
-- [x] 1. Inspect upstream traits, SDK and device; commit the architecture and plan.
-- [x] 2. Add the Compose project, supplied request, Rust workspace, three adapters, async UniFFI API and Gradle integration; commit.
-- [x] 3. Implement Android NFC/GATT, permissions, Compose screens and lifecycle cleanup; commit.
-- [x] 4. Run Rust protocol/request tests, Android build/lint, UniFFI integration tests and physical-device startup; fix and commit.
-- [x] 5. Record reproducible build instructions, physical test steps and observed results; commit and notify the user when wallet presentation can be tested.
+Both repositories contain separate commits for NFC ownership, common BLE framing/ordering, WinRT backend migration, Kotlin BLE/NFC adoption, the upstream FFI entry and removal of obsolete Android adapters. Cargo's temporary local checkout references are excluded from commits; committed manifests pin matching upstream Git revisions. Push those upstream revisions before distributing the dependent Android commits.
 
 ## Acceptance criteria
 

@@ -2,8 +2,8 @@ package com.example.mdocreader
 
 import uniffi.mdoc_transport_ble.BleBackend as RustBleBackend
 import uniffi.nfc_reader.NfcBackend
-import com.example.mdocreader.rust.ReaderEventSink
-import com.example.mdocreader.rust.ReaderSession
+import uniffi.mdoc_reader_ffi.ReaderEventSink
+import uniffi.mdoc_reader_ffi.ReaderSession
 
 interface BleSessionHardware : RustBleBackend {
     fun readerSession(nfc: NfcBackend, events: ReaderEventSink): ReaderSession = ReaderSession(nfc, this, events)

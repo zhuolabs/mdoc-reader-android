@@ -9,9 +9,9 @@ import uniffi.mdoc_transport_ble.*
 import uniffi.mdoc_transport_ble.BleBackend as RustBleBackend
 import uniffi.nfc_reader.NfcBackend
 import uniffi.nfc_reader.NfcBackendException
-import com.example.mdocreader.rust.ReaderEventSink
-import com.example.mdocreader.rust.ReaderException
-import com.example.mdocreader.rust.ReaderSession
+import uniffi.mdoc_reader_ffi.ReaderEventSink
+import uniffi.mdoc_reader_ffi.ReaderException
+import uniffi.mdoc_reader_ffi.ReaderSession
 import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Before

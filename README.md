@@ -2,11 +2,17 @@
 
 A Jetpack Compose app that reads mobile documents using NFC negotiated handover and Bluetooth LE. Protocol processing, session encryption and document verification use [zhuolabs/mdoc-reader](https://github.com/zhuolabs/mdoc-reader). Kotlin calls Rust through **UniFFI**, with a generated **suspend** API.
 
-The reader implements these upstream extension points:
+Kotlin implements the upstream platform interfaces directly:
 
-- `mdoc-ui-android`: progress and authenticated results for Compose.
-- `nfc-reader-android`: Android NFC reader mode and IsoDep.
-- `mdoc-transport-ble-android`: Android BLE peripheral / GATT server transport.
+- `AndroidNfcReader` implements the generated async `NfcBackend`.
+- `AndroidBleBackend` implements the generated async `BleBackend`.
+- Upstream `mdoc-transport-ble` owns framing, assembly, ordering and deadlines.
+- Upstream `mdoc-reader-ffi` owns `ReaderSession`, request validation and results.
+
+The Android Rust library contains UniFFI packaging and the optional USB bridge.
+The former NFC/BLE forwarding crates and Android-specific result adapter have
+been removed. `mdoc-android-platform` remains only for the unchanged synchronous
+USB driver and its event sink.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for component boundaries, lifecycle behavior and the implementation plan. See [TESTING.md](TESTING.md) for physical wallet presentation and current validation results.
 
@@ -68,7 +74,7 @@ android run --apks=android/app/build/outputs/apk/btstack/debug/app-btstack-debug
 
 The USB app is named **Mdoc Reader USB** (`com.example.mdocreader.btstack`) and can be installed alongside the platform app. Connect exactly one compatible USB Bluetooth HCI dongle, enable NFC, tap **Start reading**, and allow USB access. Built-in Bluetooth and Nearby devices permission are not required by this flavor. The validated dongle is **0411:0374** on a Pixel 9a. Other HCI-class devices are detected, but their controller compatibility depends on BTstack.
 
-The backend pins [btstack-gatt-rs](https://github.com/zhuolabs/btstack-gatt-rs/tree/18081f4da678ca8bba87084787f4365dd0a233dc), following its [Android FD example](https://github.com/zhuolabs/btstack-gatt-rs/tree/18081f4da678ca8bba87084787f4365dd0a233dc/examples/gatt-peripheral-android). Cargo fetches the dependency and its BTstack submodule automatically. Android owns the USB permission and connection; Rust duplicates the FD and runs GATT. The shared Rust `MdocTransportConnector` / `MdocTransport` implementation retains the same framing and verification flow. USB transfers stay in Rust through `ReaderSession.withUsb`. Service UUID advertising uses the upstream `.advertise_service_uuid(...)` API; advertising encoding and HCI control belong to btstack-gatt-rs.
+The backend pins [btstack-gatt-rs](https://github.com/zhuolabs/btstack-gatt-rs/tree/18081f4da678ca8bba87084787f4365dd0a233dc), following its [Android FD example](https://github.com/zhuolabs/btstack-gatt-rs/tree/18081f4da678ca8bba87084787f4365dd0a233dc/examples/gatt-peripheral-android). Cargo fetches the dependency and its BTstack submodule automatically. Android owns the USB permission and connection; Rust duplicates the FD and runs GATT. The shared Rust `MdocTransportConnector` / `MdocTransport` implementation retains the same framing and verification flow. USB transfers stay in Rust through `UsbBleHardware.readerSession`. Service UUID advertising uses the upstream `.advertise_service_uuid(...)` API; advertising encoding and HCI control belong to btstack-gatt-rs.
 
 Cancel, leaving the screen, or unplugging the dongle stops pending reads. Shutdown releases the native USB interface off Main before closing Android's connection. Wait for cleanup before restarting. Only one BTstack runtime is supported per app process.
 
@@ -100,7 +106,9 @@ Personal attributes are not persisted or logged. Results are cleared on leaving 
 
 ```kotlin
 // Each dependency implements one generated callback interface and can be replaced independently.
-val session = ReaderSession(nfcHardware, bleHardware, eventSink)
+import uniffi.mdoc_reader_ffi.ReaderSession
+
+val session = ReaderSession(nfcBackend, bleBackend, eventSink)
 try {
     val resultJson = session.read(requestJson) // Generated suspend fun.
 } finally {
@@ -109,12 +117,13 @@ try {
 }
 ```
 
-Run it from a lifecycle-owned coroutine. Cancelling that coroutine drops the Rust Future and shuts down hardware waits. Rust schedules the Send flow on Tokio and blocking NFC/BLE operations on its blocking pool; UI updates are dispatched to Main. Create a new session and hardware adapter for each read.
+Run it from a lifecycle-owned coroutine. Cancelling that coroutine drops the Rust Future and shuts down hardware waits. Rust schedules the Send flow on Tokio. Kotlin handles BLE callbacks with bounded coroutine channels and IsoDep IO on Dispatchers.IO; UI updates are dispatched to Main. Create a new session and hardware adapter for each read.
 
 ## Development checks
 
 ```powershell
-cargo fmt --all -- --check
+cargo fmt --all --check
+cargo clippy --workspace --all-targets
 cargo test --workspace --exclude mdoc-uniffi-bindgen --locked
 ./android/gradlew.bat -p android :app:assemblePlatformDebug :app:lintPlatformDebug
 $env:ANDROID_SERIAL = 'adb-51081JEBF12866-ekLo7L._adb-tls-connect._tcp'

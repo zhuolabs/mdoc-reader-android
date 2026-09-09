@@ -13,7 +13,7 @@ import uniffi.mdoc_transport_ble.BleReceiveOrdering
 import uniffi.mdoc_transport_ble.BleBackendException
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import com.example.mdocreader.rust.ReaderEventSink
+import uniffi.mdoc_reader_ffi.ReaderEventSink
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -69,7 +69,7 @@ class AndroidBleBackend(
         characteristic(C2S, BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE, BluetoothGattCharacteristic.PERMISSION_WRITE)
         s2c = characteristic(S2C, BluetoothGattCharacteristic.PROPERTY_NOTIFY, 0, true)
         characteristic(IDENT, BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ)
-        val deadline = SystemClock.elapsedRealtime() + timeoutMs.toLong()
+        val deadline = SystemClock.elapsedRealtime() + timeoutMs
         synchronized(lock) {
             checkOpen()
             this.ident = ident.copyOf()
@@ -177,7 +177,8 @@ class AndroidBleBackend(
     }
 
     private suspend fun <T> await(queue: Channel<T>, timeoutMs: Long, label: String): T {
-        return withTimeout(timeoutMs) { queue.receive() }
+        return withTimeoutOrNull(timeoutMs) { queue.receive() }
+            ?: throw BleBackendException.Failure("$label timed out")
     }
 
     private val advertiseCallback = object : AdvertiseCallback() {

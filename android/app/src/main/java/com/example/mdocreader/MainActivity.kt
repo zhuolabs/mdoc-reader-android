@@ -17,7 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.mdocreader.rust.ReaderSession
+import uniffi.mdoc_reader_ffi.ReaderSession
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import com.example.mdocreader.theme.MdocReaderTheme
