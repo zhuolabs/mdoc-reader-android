@@ -136,3 +136,21 @@ Do not provide personal attribute values when reporting failures. Report the las
 
 The final debug APK was reinstalled on the authorized Pixel 9a after testing, with runtime permissions granted. MainActivity was confirmed as the resumed activity. The app is ready for the user to tap **Start reading** and present an mdoc. No real personal document has been read during implementation.
 
+
+## Android UniFFI checksum regression (2026-09-09)
+
+On Pixel 9a (arm64, Android 17, active user 0),
+`ReaderIntegrationTest#invalidRequestCrossesAsyncUniffiBoundary` reproduced
+`UniFFI API checksum mismatch` before the fix and passed after it. This exercises
+real library initialization, ReaderSession construction, async Rust invocation,
+and hardware callback shutdown with stub hardware. It does not read a wallet.
+Both platformDebug and btstackDebug APK builds passed; only platformDebug was
+instrumented for this regression.
+
+UniFFI 0.32 generates JNA Int returns for Rust u16 checksums. The arm64 connect
+checksum returned register value -19644 while the expected u16 was 45892.
+The binding-generation task masks checksum comparisons to 16 bits, retaining
+mismatch detection. See https://github.com/mozilla/uniffi-rs/issues/2939.
+Remove the generation workaround when an upstream fix is adopted and verified
+on device. Earlier user-10 installation restrictions recorded above describe
+previous runs, not this successful user-0 test.

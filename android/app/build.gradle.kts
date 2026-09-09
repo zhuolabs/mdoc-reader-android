@@ -93,6 +93,22 @@ androidComponents.onVariants { variant ->
             "--library", nativeBuild.get().outputDirectory.file("arm64-v8a/libmdoc_android.so").get().asFile.absolutePath,
             "--language", "kotlin", "--no-format",
             "--out-dir", outputDirectory.get().asFile.absolutePath)
+        doLast {
+            // UniFFI 0.32 maps Rust u16 checksum returns to JNA Int. On arm64
+            // the upper 16 bits are unspecified (e.g. 45892 arrives as -19644).
+            // Compare the actual u16, preserving API mismatch detection.
+            // https://github.com/mozilla/uniffi-rs/issues/2939
+            val checksum = Regex("""lib\.(uniffi_\w+_checksum_\w+)\(\) != (\d+)""")
+            outputDirectory.get().asFile.walkTopDown()
+                .filter { it.isFile && it.extension == "kt" }
+                .forEach { file ->
+                    val source = file.readText()
+                    val corrected = checksum.replace(source) { match ->
+                        "(lib.${match.groupValues[1]}() and 0xffff) != ${match.groupValues[2]}"
+                    }
+                    if (corrected != source) file.writeText(corrected)
+                }
+        }
     }
     variant.sources.java?.addGeneratedSourceDirectory(bindings, GenerateNative::outputDirectory)
     variant.sources.jniLibs?.addGeneratedSourceDirectory(nativeBuild, GenerateNative::outputDirectory)

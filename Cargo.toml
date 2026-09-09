@@ -4,9 +4,9 @@ resolver = "2"
 
 [workspace.dependencies]
 anyhow = "1"
-mdoc-reader-ffi = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "c6519b319f55f8d5a33fd5c7ffca1b1a4efedbff" }
-mdoc-transport-ble = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "c6519b319f55f8d5a33fd5c7ffca1b1a4efedbff", features = ["uniffi"] }
-nfc-reader = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "c6519b319f55f8d5a33fd5c7ffca1b1a4efedbff", features = ["uniffi"] }
+mdoc-reader-ffi = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "9bd178a8d84abdfbaff58584fe62b0f7ebbeddf0" }
+mdoc-transport-ble = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "9bd178a8d84abdfbaff58584fe62b0f7ebbeddf0", features = ["uniffi"] }
+nfc-reader = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "9bd178a8d84abdfbaff58584fe62b0f7ebbeddf0", features = ["uniffi"] }
 mdoc-android-platform = { path = "crates/mdoc-android-platform" }
 uniffi = { version = "=0.32.0" }
 
