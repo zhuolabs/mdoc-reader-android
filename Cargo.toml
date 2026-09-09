@@ -4,14 +4,14 @@ resolver = "2"
 
 [workspace.dependencies]
 anyhow = "1"
-mdoc-transport-ble = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698", features = ["uniffi"] }
-mdoc-core = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
-mdoc-ui = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
-nfc-reader = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
-mdoc-transport = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
-mdoc-reader-flow = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
-mdoc-data-retrieval-flow = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
-mdoc-security = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
+mdoc-transport-ble = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "0db42cb9dbbd493fd4cbc4e4234e88228b02788c", features = ["uniffi"] }
+mdoc-core = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "0db42cb9dbbd493fd4cbc4e4234e88228b02788c" }
+mdoc-ui = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "0db42cb9dbbd493fd4cbc4e4234e88228b02788c" }
+nfc-reader = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "0db42cb9dbbd493fd4cbc4e4234e88228b02788c", features = ["uniffi"] }
+mdoc-transport = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "0db42cb9dbbd493fd4cbc4e4234e88228b02788c" }
+mdoc-reader-flow = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "0db42cb9dbbd493fd4cbc4e4234e88228b02788c" }
+mdoc-data-retrieval-flow = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "0db42cb9dbbd493fd4cbc4e4234e88228b02788c" }
+mdoc-security = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "0db42cb9dbbd493fd4cbc4e4234e88228b02788c" }
 mdoc-android-platform = { path = "crates/mdoc-android-platform" }
 uniffi = { version = "=0.32.0" }
 

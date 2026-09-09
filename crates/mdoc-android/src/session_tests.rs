@@ -3,15 +3,15 @@ use std::sync::{Condvar, Mutex};
 use std::time::Duration;
 use tokio::sync::Notify;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Hardware {
-    closed: Mutex<bool>,
-    released: Condvar,
-    entered: Notify,
-    exited: Notify,
+    closed: Arc<Mutex<bool>>,
+    released: Arc<Condvar>,
+    entered: Arc<Notify>,
+    exited: Arc<Notify>,
 }
-impl NfcHardware for Hardware {
-    fn nfc_connect(&self, _: u64) -> Result<bool, ReaderError> {
+impl Hardware {
+    fn blocking_connect(&self) -> Result<bool, nfc_reader::NfcBackendError> {
         self.entered.notify_one();
         let (closed, _) = self
             .released
@@ -24,9 +24,20 @@ impl NfcHardware for Hardware {
         let was_closed = *closed;
         self.exited.notify_one();
         assert!(was_closed, "Shutdown must release blocking hardware");
-        Err(anyhow::anyhow!("Cancelled").into())
+        Err(nfc_reader::NfcBackendError::Failure {
+            details: "Cancelled".into(),
+        })
     }
-    fn nfc_transceive(&self, _: Vec<u8>) -> Result<Vec<u8>, ReaderError> {
+}
+#[async_trait::async_trait]
+impl NfcBackend for Hardware {
+    async fn connect(&self, _: u64) -> Result<bool, nfc_reader::NfcBackendError> {
+        let hardware = self.clone();
+        tokio::task::spawn_blocking(move || hardware.blocking_connect())
+            .await
+            .unwrap()
+    }
+    async fn transceive(&self, _: Vec<u8>) -> Result<Vec<u8>, nfc_reader::NfcBackendError> {
         unreachable!()
     }
     fn shutdown(&self) {
@@ -57,7 +68,7 @@ impl BleBackend for Hardware {
         Err(mdoc_transport_ble::BleBackendError::Disconnected)
     }
     fn shutdown(&self) {
-        NfcHardware::shutdown(self);
+        NfcBackend::shutdown(self);
         self.exited.notify_one();
     }
 }
@@ -126,7 +137,7 @@ async fn cancellation_and_future_drop_release_blocking_hardware() {
             operation_timeout: Duration::from_secs(120),
         };
         let owner = reader.clone();
-        let mut adapter = nfc_reader_android::AndroidNfcReader(reader.nfc.clone());
+        let mut adapter = GenericNfcReader(reader.nfc.clone());
         let task = tokio::spawn(async move {
             owner
                 .read_with(async move {

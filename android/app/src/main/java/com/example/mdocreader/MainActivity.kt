@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
             val eventSink = UiEventSink { event ->
                 runOnUiThread { if (generation == thisGeneration && state.value.busy) state.value = state.value.copy(stage = event) }
             }
-            val nfcSession = AndroidNfcHardware(this@MainActivity, adapter)
+            val nfcSession = AndroidNfcReader(this@MainActivity, adapter)
             var bleSession: BleSessionHardware? = null
             nfcHardware = nfcSession
             var native: ReaderSession? = null

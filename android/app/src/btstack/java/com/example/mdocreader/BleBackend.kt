@@ -12,7 +12,7 @@ import androidx.core.content.ContextCompat
 import com.example.mdocreader.rust.ReaderEventSink
 import com.example.mdocreader.rust.UsbBleHardware
 import com.example.mdocreader.rust.ReaderSession
-import com.example.mdocreader.rust.NfcHardware
+import uniffi.nfc_reader.NfcBackend
 import kotlinx.coroutines.*
 import uniffi.mdoc_transport_ble.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -93,7 +93,7 @@ private class UsbSession(
         val mtu = native.bleConnect(params.serviceUuid, params.ident, 120_000u)
         BleConnectionInfo(minOf(mtu.toUInt() - 3u, 512u), BleReceiveOrdering.Ordered)
     }
-    override fun readerSession(nfc: NfcHardware, events: ReaderEventSink) = ReaderSession.withUsb(nfc, native, events)
+    override fun readerSession(nfc: NfcBackend, events: ReaderEventSink) = ReaderSession.withUsb(nfc, native, events)
     override suspend fun send(value: ByteArray) = withContext(Dispatchers.IO) { native.bleSend(value) }
     override suspend fun receive() = withContext(Dispatchers.IO) { native.bleReceive(120_000u) }
     override fun shutdown() { native.shutdown() }

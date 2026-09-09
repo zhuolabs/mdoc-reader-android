@@ -443,7 +443,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "connection-handover"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "anyhow",
  "minicbor",
@@ -1280,7 +1280,6 @@ dependencies = [
  "mdoc-ui",
  "mdoc-ui-android",
  "nfc-reader",
- "nfc-reader-android",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
@@ -1300,7 +1299,7 @@ dependencies = [
 [[package]]
 name = "mdoc-core"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "ambassador",
  "anyhow",
@@ -1321,7 +1320,7 @@ dependencies = [
 [[package]]
 name = "mdoc-data-retrieval-flow"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "mdoc-core",
 ]
@@ -1329,7 +1328,7 @@ dependencies = [
 [[package]]
 name = "mdoc-data-retrieval-flow-nfc-ble"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "anyhow",
  "connection-handover",
@@ -1348,7 +1347,7 @@ dependencies = [
 [[package]]
 name = "mdoc-reader-flow"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1371,7 +1370,7 @@ dependencies = [
 [[package]]
 name = "mdoc-security"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -1400,7 +1399,7 @@ dependencies = [
 [[package]]
 name = "mdoc-transport"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "thiserror 1.0.69",
  "uuid",
@@ -1409,7 +1408,7 @@ dependencies = [
 [[package]]
 name = "mdoc-transport-ble"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "async-trait",
  "mdoc-transport",
@@ -1442,7 +1441,7 @@ dependencies = [
 [[package]]
 name = "mdoc-ui"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "mdoc-core",
  "mdoc-data-retrieval-flow",
@@ -1567,7 +1566,7 @@ dependencies = [
 [[package]]
 name = "nfc-reader"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2516,7 +2515,7 @@ dependencies = [
 [[package]]
 name = "tnep"
 version = "0.1.0"
-source = "git+https://github.com/zhuolabs/mdoc-reader?rev=ab0df2d8adb526ced82f88ff688408b119634698#ab0df2d8adb526ced82f88ff688408b119634698"
+source = "git+https://github.com/zhuolabs/mdoc-reader?rev=0db42cb9dbbd493fd4cbc4e4234e88228b02788c#0db42cb9dbbd493fd4cbc4e4234e88228b02788c"
 dependencies = [
  "anyhow",
  "log",

@@ -7,7 +7,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import uniffi.mdoc_transport_ble.*
 import uniffi.mdoc_transport_ble.BleBackend as RustBleBackend
-import com.example.mdocreader.rust.NfcHardware
+import uniffi.nfc_reader.NfcBackend
+import uniffi.nfc_reader.NfcBackendException
 import com.example.mdocreader.rust.ReaderEventSink
 import com.example.mdocreader.rust.ReaderException
 import com.example.mdocreader.rust.ReaderSession
@@ -49,11 +50,11 @@ class ReaderIntegrationTest {
         val released = CountDownLatch(1)
         val offMain = AtomicBoolean(false)
         val nfc = object : StubNfc() {
-            override fun nfcConnect(timeoutMs: ULong): Boolean {
+            override suspend fun connect(timeoutMs: ULong): Boolean = runInterruptible(Dispatchers.IO) {
                 offMain.set(Looper.myLooper() != Looper.getMainLooper())
                 reachedNfc.countDown()
-                if (!released.await(15, TimeUnit.SECONDS)) throw ReaderException.Failure("Test cancellation timeout")
-                throw ReaderException.Failure("Cancelled")
+                if (!released.await(15, TimeUnit.SECONDS)) throw NfcBackendException.Failure("Test cancellation timeout")
+                throw NfcBackendException.Failure("Cancelled")
             }
             override fun shutdown() { super.shutdown(); released.countDown() }
         }
@@ -106,10 +107,10 @@ class ReaderIntegrationTest {
     }
 }
 
-private open class StubNfc : NfcHardware {
+private open class StubNfc : NfcBackend {
     val closed = AtomicBoolean(false)
-    override fun nfcConnect(timeoutMs: ULong): Boolean = error("Unexpected NFC call")
-    override fun nfcTransceive(command: ByteArray): ByteArray = error("Unexpected NFC transceive")
+    override suspend fun connect(timeoutMs: ULong): Boolean = error("Unexpected NFC call")
+    override suspend fun transceive(command: ByteArray): ByteArray = error("Unexpected NFC transceive")
     override fun shutdown() { closed.set(true) }
 }
 

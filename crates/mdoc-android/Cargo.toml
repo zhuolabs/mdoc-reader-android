@@ -18,7 +18,7 @@ mdoc-reader-flow.workspace = true
 mdoc-security.workspace = true
 mdoc-ui.workspace = true
 mdoc-android-platform.workspace = true
-nfc-reader-android = { path = "../nfc-reader-android" }
+nfc-reader.workspace = true
 mdoc-transport-ble.workspace = true
 async-trait = "0.1"
 mdoc-ui-android = { path = "../mdoc-ui-android" }

@@ -55,12 +55,12 @@ impl ReaderSession {
     /// The USB backend stays entirely in Rust during document transfer.
     #[uniffi::constructor]
     pub fn with_usb(
-        nfc: Arc<dyn NfcHardware>,
+        nfc: Arc<dyn NfcBackend>,
         ble: Arc<UsbBleHardware>,
         events: Arc<dyn ReaderEventSink>,
     ) -> Arc<Self> {
         Arc::new(Self {
-            nfc: Arc::new(NfcAdapter(nfc)),
+            nfc,
             ble: Arc::new(UsbBackend(ble.0.clone())),
             events: Arc::new(EventAdapter(events)),
             cancelled: CancellationToken::new(),
