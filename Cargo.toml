@@ -4,13 +4,14 @@ resolver = "2"
 
 [workspace.dependencies]
 anyhow = "1"
-mdoc-core = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "bc973b1d1b58da55f3c99779b72f7e951e7911ef" }
-mdoc-ui = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "bc973b1d1b58da55f3c99779b72f7e951e7911ef" }
-nfc-reader = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "bc973b1d1b58da55f3c99779b72f7e951e7911ef" }
-mdoc-transport = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "bc973b1d1b58da55f3c99779b72f7e951e7911ef" }
-mdoc-reader-flow = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "bc973b1d1b58da55f3c99779b72f7e951e7911ef" }
-mdoc-data-retrieval-flow = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "bc973b1d1b58da55f3c99779b72f7e951e7911ef" }
-mdoc-security = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "bc973b1d1b58da55f3c99779b72f7e951e7911ef" }
+mdoc-transport-ble = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698", features = ["uniffi"] }
+mdoc-core = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
+mdoc-ui = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
+nfc-reader = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
+mdoc-transport = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
+mdoc-reader-flow = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
+mdoc-data-retrieval-flow = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
+mdoc-security = { git = "https://github.com/zhuolabs/mdoc-reader", rev = "ab0df2d8adb526ced82f88ff688408b119634698" }
 mdoc-android-platform = { path = "crates/mdoc-android-platform" }
 uniffi = { version = "=0.32.0" }
 

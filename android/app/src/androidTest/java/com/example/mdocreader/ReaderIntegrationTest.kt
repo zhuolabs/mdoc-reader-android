@@ -5,7 +5,8 @@ import android.os.Looper
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
-import com.example.mdocreader.rust.BleHardware
+import uniffi.mdoc_transport_ble.*
+import uniffi.mdoc_transport_ble.BleBackend as RustBleBackend
 import com.example.mdocreader.rust.NfcHardware
 import com.example.mdocreader.rust.ReaderEventSink
 import com.example.mdocreader.rust.ReaderException
@@ -78,8 +79,8 @@ class ReaderIntegrationTest {
         val events = StubEvents { if (it == "ble_advertising") advertised.countDown() }
         val hardware = BleBackend.open(compose.activity, events)
         val job = async(Dispatchers.IO) {
-            try { hardware.bleConnect(UUID.randomUUID().toString(), ByteArray(16), 120_000u); false }
-            catch (_: ReaderException.Failure) { true }
+            try { hardware.connect(BleBackendParams(UUID.randomUUID().toString(), ByteArray(16))); false }
+            catch (_: BleBackendException) { true }
         }
         try {
             assertTrue("GATT service registered and BLE advertising started", withContext(Dispatchers.IO) { advertised.await(25, TimeUnit.SECONDS) })
@@ -112,11 +113,11 @@ private open class StubNfc : NfcHardware {
     override fun shutdown() { closed.set(true) }
 }
 
-private open class StubBle : BleHardware {
+private open class StubBle : RustBleBackend {
     val closed = AtomicBoolean(false)
-    override fun bleConnect(uuid: String, ident: ByteArray, timeoutMs: ULong): UShort = error("Unexpected BLE connect")
-    override fun bleSend(chunk: ByteArray) = error("Unexpected BLE send")
-    override fun bleReceive(timeoutMs: ULong): ByteArray = error("Unexpected BLE receive")
+    override suspend fun connect(params: BleBackendParams): BleConnectionInfo = error("Unexpected BLE connect")
+    override suspend fun send(value: ByteArray) = error("Unexpected BLE send")
+    override suspend fun receive(): ByteArray = error("Unexpected BLE receive")
     override fun shutdown() { closed.set(true) }
 }
 

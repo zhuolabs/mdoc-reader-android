@@ -7,18 +7,20 @@ import android.content.Context
 import android.os.Build
 import android.os.ParcelUuid
 import android.os.SystemClock
-import com.example.mdocreader.rust.BleHardware
+import uniffi.mdoc_transport_ble.BleBackendParams
+import uniffi.mdoc_transport_ble.BleConnectionInfo
+import uniffi.mdoc_transport_ble.BleReceiveOrdering
+import uniffi.mdoc_transport_ble.BleBackendException
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import com.example.mdocreader.rust.ReaderEventSink
-import com.example.mdocreader.rust.ReaderException
 import java.util.UUID
-import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /** Android GATT-server implementation of the UniFFI BLE callback interface. */
 @SuppressLint("MissingPermission") // MainActivity checks CONNECT/ADVERTISE before construction.
-class AndroidBleHardware(
+class AndroidBleBackend(
     context: Context,
     private val events: ReaderEventSink,
 ) : BleSessionHardware {
@@ -27,10 +29,10 @@ class AndroidBleHardware(
     private val closed = AtomicBoolean(false)
     private val failure = AtomicReference<String?>(null)
     private val lock = Any()
-    private val serviceAdded = ArrayBlockingQueue<Int>(1)
-    private val advertising = ArrayBlockingQueue<Int>(1)
-    private val notifications = ArrayBlockingQueue<Int>(1)
-    private val packets = ArrayBlockingQueue<ByteArray>(2048)
+    private val serviceAdded = Channel<Int>(1)
+    private val advertising = Channel<Int>(1)
+    private val notifications = Channel<Int>(1)
+    private val packets = Channel<ByteArray>(2048)
     @Volatile private var server: BluetoothGattServer? = null
     @Volatile private var advertiser: BluetoothLeAdvertiser? = null
     @Volatile private var peer: BluetoothDevice? = null
@@ -41,11 +43,14 @@ class AndroidBleHardware(
     private lateinit var s2c: BluetoothGattCharacteristic
     private val subscriptions = mutableMapOf<UUID, ByteArray>()
 
-    override fun bleConnect(uuid: String, ident: ByteArray, timeoutMs: ULong): UShort = translateErrors {
-        val adapter = manager.adapter ?: throw ReaderException.Failure("Bluetooth is not supported")
-        if (!adapter.isEnabled) throw ReaderException.Failure("Turn on Bluetooth")
+    override suspend fun connect(params: BleBackendParams): BleConnectionInfo = translateErrors {
+        val uuid = params.serviceUuid
+        val ident = params.ident
+        val timeoutMs = 120_000L
+        val adapter = manager.adapter ?: throw BleBackendException.Failure("Bluetooth is not supported")
+        if (!adapter.isEnabled) throw BleBackendException.Failure("Turn on Bluetooth")
         val leAdvertiser = adapter.bluetoothLeAdvertiser
-            ?: throw ReaderException.Failure("BLE peripheral advertising is unavailable")
+            ?: throw BleBackendException.Failure("BLE peripheral advertising is unavailable")
         val service = BluetoothGattService(UUID.fromString(uuid), BluetoothGattService.SERVICE_TYPE_PRIMARY)
         fun characteristic(id: UUID, properties: Int, permissions: Int, notify: Boolean = false): BluetoothGattCharacteristic {
             val characteristic = BluetoothGattCharacteristic(id, properties, permissions)
@@ -69,12 +74,12 @@ class AndroidBleHardware(
             checkOpen()
             this.ident = ident.copyOf()
             server = manager.openGattServer(appContext, callback)
-                ?: throw ReaderException.Failure("Cannot open GATT server")
+                ?: throw BleBackendException.Failure("Cannot open GATT server")
             advertiser = leAdvertiser
-            if (server?.addService(service) != true) throw ReaderException.Failure("Cannot add GATT service")
+            if (server?.addService(service) != true) throw BleBackendException.Failure("Cannot add GATT service")
         }
         if (await(serviceAdded, 10_000, "GATT service registration") != BluetoothGatt.GATT_SUCCESS) {
-            throw ReaderException.Failure("GATT service registration failed")
+            throw BleBackendException.Failure("GATT service registration failed")
         }
         synchronized(lock) {
             checkOpen()
@@ -94,23 +99,24 @@ class AndroidBleHardware(
             )
         }
         val code = await(advertising, 10_000, "BLE advertising")
-        if (code != 0) throw ReaderException.Failure("Cannot start BLE advertising (code=$code)")
+        if (code != 0) throw BleBackendException.Failure("Cannot start BLE advertising (code=$code)")
         events.onEvent("ble_advertising")
         while (!subscribed || !stateStarted || peer == null) {
             checkOpen()
-            if (SystemClock.elapsedRealtime() >= deadline) throw ReaderException.Failure("BLE connection timed out")
-            Thread.sleep(20)
+            if (SystemClock.elapsedRealtime() >= deadline) throw BleBackendException.Failure("BLE connection timed out")
+            delay(20)
         }
-        mtu.toUShort()
+        BleConnectionInfo(minOf(mtu - 3, 512).toUInt(), BleReceiveOrdering.Ordered)
     }
 
-    override fun bleSend(chunk: ByteArray) = translateErrors {
-        if (!subscribed) throw ReaderException.Failure("BLE notifications are not subscribed")
-        notifications.clear()
+    override suspend fun send(value: ByteArray) = translateErrors {
+        if (!subscribed) throw BleBackendException.Failure("BLE notifications are not subscribed")
+        val chunk = value
+        while (notifications.tryReceive().isSuccess) { /* drain stale callbacks */ }
         synchronized(lock) {
             checkOpen()
-            val device = peer ?: throw ReaderException.Failure("BLE is not connected")
-            val gatt = server ?: throw ReaderException.Failure("GATT server is closed")
+            val device = peer ?: throw BleBackendException.Failure("BLE is not connected")
+            val gatt = server ?: throw BleBackendException.Failure("GATT server is closed")
             val sent = if (Build.VERSION.SDK_INT >= 33) {
                 gatt.notifyCharacteristicChanged(device, s2c, false, chunk) == BluetoothStatusCodes.SUCCESS
             } else {
@@ -119,16 +125,14 @@ class AndroidBleHardware(
                 @Suppress("DEPRECATION")
                 gatt.notifyCharacteristicChanged(device, s2c, false)
             }
-            if (!sent) throw ReaderException.Failure("Cannot send BLE notification")
+            if (!sent) throw BleBackendException.Failure("Cannot send BLE notification")
         }
         if (await(notifications, 10_000, "BLE notification") != BluetoothGatt.GATT_SUCCESS) {
-            throw ReaderException.Failure("BLE notification failed")
+            throw BleBackendException.Failure("BLE notification failed")
         }
     }
 
-    override fun bleReceive(timeoutMs: ULong): ByteArray = translateErrors {
-        await(packets, timeoutMs.toLong(), "mdoc response")
-    }
+    override suspend fun receive(): ByteArray = translateErrors { packets.receive() }
 
     override fun shutdown() {
         synchronized(lock) {
@@ -139,38 +143,46 @@ class AndroidBleHardware(
             runCatching { server?.close() }
             server = null
             peer = null
-            packets.clear()
+            packets.close(BleBackendException.Disconnected())
+            notifications.close(BleBackendException.Disconnected())
+            serviceAdded.close(BleBackendException.Disconnected())
+            advertising.close(BleBackendException.Disconnected())
             ident.fill(0)
         }
     }
 
-    private fun checkOpen() {
-        if (closed.get()) throw ReaderException.Failure("Reading cancelled")
-        failure.get()?.let { throw ReaderException.Failure(it) }
+    private fun fail(details: String) {
+        failure.compareAndSet(null, details)
+        val error = BleBackendException.Failure(details)
+        packets.close(error)
+        notifications.close(error)
+        serviceAdded.close(error)
+        advertising.close(error)
     }
 
-    private inline fun <T> translateErrors(block: () -> T): T = try {
+    private fun checkOpen() {
+        if (closed.get()) throw BleBackendException.Failure("Reading cancelled")
+        failure.get()?.let { throw BleBackendException.Failure(it) }
+    }
+
+    private suspend inline fun <T> translateErrors(block: () -> T): T = try {
         checkOpen()
         block()
-    } catch (error: ReaderException) {
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: BleBackendException) {
         throw error
     } catch (error: Exception) {
-        throw ReaderException.Failure(error.message ?: error.javaClass.simpleName)
+        throw BleBackendException.Failure(error.message ?: error.javaClass.simpleName)
     }
 
-    private fun <T> await(queue: ArrayBlockingQueue<T>, timeoutMs: Long, label: String): T {
-        val deadline = SystemClock.elapsedRealtime() + timeoutMs
-        while (true) {
-            checkOpen()
-            val remaining = deadline - SystemClock.elapsedRealtime()
-            if (remaining <= 0) throw ReaderException.Failure("$label timed out")
-            queue.poll(minOf(remaining, 100), TimeUnit.MILLISECONDS)?.let { return it }
-        }
+    private suspend fun <T> await(queue: Channel<T>, timeoutMs: Long, label: String): T {
+        return withTimeout(timeoutMs) { queue.receive() }
     }
 
     private val advertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) { advertising.offer(0) }
-        override fun onStartFailure(errorCode: Int) { advertising.offer(errorCode) }
+        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) { advertising.trySend(0) }
+        override fun onStartFailure(errorCode: Int) { advertising.trySend(errorCode) }
     }
 
     private fun accepts(device: BluetoothDevice): Boolean = !closed.get() && peer == device
@@ -179,7 +191,7 @@ class AndroidBleHardware(
     }
 
     private val callback = object : BluetoothGattServerCallback() {
-        override fun onServiceAdded(status: Int, service: BluetoothGattService) { serviceAdded.offer(status) }
+        override fun onServiceAdded(status: Int, service: BluetoothGattService) { serviceAdded.trySend(status) }
 
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             synchronized(lock) {
@@ -187,17 +199,17 @@ class AndroidBleHardware(
                 if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
                     if (peer == null) peer = device else if (peer != device) server?.cancelConnection(device)
                 } else if (device == peer) {
-                    failure.compareAndSet(null, "BLE disconnected (status=$status)")
+                    fail("BLE disconnected (status=$status)")
                 }
             }
         }
 
         override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
-            if (accepts(device)) this@AndroidBleHardware.mtu = mtu.coerceIn(23, 517)
+            if (accepts(device)) this@AndroidBleBackend.mtu = mtu.coerceIn(23, 517)
         }
 
         override fun onNotificationSent(device: BluetoothDevice, status: Int) {
-            if (accepts(device)) notifications.offer(status)
+            if (accepts(device)) notifications.trySend(status)
         }
 
         override fun onCharacteristicReadRequest(
@@ -227,14 +239,14 @@ class AndroidBleHardware(
             } else when (characteristic.uuid) {
                 STATE -> when {
                     value.contentEquals(byteArrayOf(1)) -> stateStarted = true
-                    value.contentEquals(byteArrayOf(2)) -> failure.compareAndSet(null, "Presenting device ended the BLE session")
+                    value.contentEquals(byteArrayOf(2)) -> fail("Presenting device ended the BLE session")
                     else -> status = BluetoothGatt.GATT_INVALID_ATTRIBUTE_LENGTH
                 }
                 C2S -> if (value.isEmpty() || value.size > 512) {
                     status = BluetoothGatt.GATT_INVALID_ATTRIBUTE_LENGTH
-                    failure.compareAndSet(null, "Invalid BLE frame")
-                } else if (!packets.offer(value.copyOf())) {
-                    failure.compareAndSet(null, "BLE receive queue overflow")
+                    fail("Invalid BLE frame")
+                } else if (!packets.trySend(value.copyOf()).isSuccess) {
+                    fail("BLE receive queue overflow")
                 }
                 else -> status = BluetoothGatt.GATT_WRITE_NOT_PERMITTED
             }

@@ -34,18 +34,31 @@ impl NfcHardware for Hardware {
         self.released.notify_all();
     }
 }
-impl BleHardware for Hardware {
-    fn ble_connect(&self, _: String, _: Vec<u8>, _: u64) -> Result<u16, ReaderError> {
-        Ok(23)
+#[async_trait::async_trait]
+impl BleBackend for Hardware {
+    async fn connect(
+        &self,
+        _: mdoc_transport_ble::BleBackendParams,
+    ) -> Result<mdoc_transport_ble::BleConnectionInfo, mdoc_transport_ble::BleBackendError> {
+        Ok(mdoc_transport_ble::BleConnectionInfo {
+            max_characteristic_value_size: 20,
+            receive_ordering: mdoc_transport_ble::BleReceiveOrdering::Ordered,
+        })
     }
-    fn ble_send(&self, _: Vec<u8>) -> Result<(), ReaderError> {
+    async fn send(&self, _: Vec<u8>) -> Result<(), mdoc_transport_ble::BleBackendError> {
         Ok(())
     }
-    fn ble_receive(&self, timeout: u64) -> Result<Vec<u8>, ReaderError> {
-        self.nfc_connect(timeout).map(|_| vec![])
+    async fn receive(&self) -> Result<Vec<u8>, mdoc_transport_ble::BleBackendError> {
+        self.entered.notify_one();
+        while !*self.closed.lock().unwrap() {
+            tokio::task::yield_now().await;
+        }
+        self.exited.notify_one();
+        Err(mdoc_transport_ble::BleBackendError::Disconnected)
     }
     fn shutdown(&self) {
         NfcHardware::shutdown(self);
+        self.exited.notify_one();
     }
 }
 impl ReaderEventSink for Hardware {
@@ -108,9 +121,9 @@ async fn cancellation_and_future_drop_release_blocking_hardware() {
     for (drop_future, use_ble) in [(false, false), (true, false), (false, true), (true, true)] {
         let (reader, nfc, ble) = session();
         let waiting = if use_ble { ble.clone() } else { nfc.clone() };
-        let connector = mdoc_transport_ble_android::AndroidBleConnector {
-            platform: reader.ble.clone(),
-            events: reader.events.clone(),
+        let connector = BleMdocTransportConnector {
+            backend: reader.ble.clone(),
+            operation_timeout: Duration::from_secs(120),
         };
         let owner = reader.clone();
         let mut adapter = nfc_reader_android::AndroidNfcReader(reader.nfc.clone());

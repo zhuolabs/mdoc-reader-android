@@ -19,7 +19,8 @@ mdoc-security.workspace = true
 mdoc-ui.workspace = true
 mdoc-android-platform.workspace = true
 nfc-reader-android = { path = "../nfc-reader-android" }
-mdoc-transport-ble-android = { path = "../mdoc-transport-ble-android" }
+mdoc-transport-ble.workspace = true
+async-trait = "0.1"
 mdoc-ui-android = { path = "../mdoc-ui-android" }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }

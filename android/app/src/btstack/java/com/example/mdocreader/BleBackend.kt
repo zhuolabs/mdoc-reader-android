@@ -14,6 +14,7 @@ import com.example.mdocreader.rust.UsbBleHardware
 import com.example.mdocreader.rust.ReaderSession
 import com.example.mdocreader.rust.NfcHardware
 import kotlinx.coroutines.*
+import uniffi.mdoc_transport_ble.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 object BleBackend {
@@ -88,10 +89,13 @@ private class UsbSession(
     init {
         ContextCompat.registerReceiver(context, receiver, IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED), ContextCompat.RECEIVER_NOT_EXPORTED)
     }
-    override fun bleConnect(uuid: String, ident: ByteArray, timeoutMs: ULong) = native.bleConnect(uuid, ident, timeoutMs)
+    override suspend fun connect(params: BleBackendParams): BleConnectionInfo = withContext(Dispatchers.IO) {
+        val mtu = native.bleConnect(params.serviceUuid, params.ident, 120_000u)
+        BleConnectionInfo(minOf(mtu.toUInt() - 3u, 512u), BleReceiveOrdering.Ordered)
+    }
     override fun readerSession(nfc: NfcHardware, events: ReaderEventSink) = ReaderSession.withUsb(nfc, native, events)
-    override fun bleSend(chunk: ByteArray) = native.bleSend(chunk)
-    override fun bleReceive(timeoutMs: ULong) = native.bleReceive(timeoutMs)
+    override suspend fun send(value: ByteArray) = withContext(Dispatchers.IO) { native.bleSend(value) }
+    override suspend fun receive() = withContext(Dispatchers.IO) { native.bleReceive(120_000u) }
     override fun shutdown() { native.shutdown() }
     override suspend fun finish() {
         if (!closed.compareAndSet(false, true)) return

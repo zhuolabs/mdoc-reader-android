@@ -8,6 +8,7 @@ import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
+import uniffi.mdoc_transport_ble.BleBackendParams
 
 /** Opt-in test paired with scripts/verify_usb_mdoc.py on a separate BLE central. */
 class UsbGattWireTest {
@@ -21,15 +22,15 @@ class UsbGattWireTest {
             val hardware = BleBackend.open(context, events)
             try {
                 withContext(Dispatchers.IO) {
-                    val mtu = hardware.bleConnect(SERVICE, ByteArray(16) { it.toByte() }, 120_000u)
+                    val mtu = hardware.connect(BleBackendParams(SERVICE, ByteArray(16) { it.toByte() })).maxCharacteristicValueSize
                     assertTrue(mtu >= 23u)
                     // Multiple notifications exercise the runtime's bounded queue.
-                    repeat(200) { index -> hardware.bleSend(byteArrayOf(if (index == 199) 0 else 1, index.toByte())) }
+                    repeat(200) { index -> hardware.send(byteArrayOf(if (index == 199) 0 else 1, index.toByte())) }
                     repeat(200) { index ->
-                        assertArrayEquals(byteArrayOf(if (index == 199) 0 else 1, index.toByte()), hardware.bleReceive(30_000u))
+                        assertArrayEquals(byteArrayOf(if (index == 199) 0 else 1, index.toByte()), withTimeout(30_000) { hardware.receive() })
                     }
                     // Central sends State=0x02 after confirming all frames.
-                    try { hardware.bleReceive(30_000u); fail("Termination must fail receive") }
+                    try { withTimeout(30_000) { hardware.receive() }; fail("Termination must fail receive") }
                     catch (error: ReaderException.Failure) { assertTrue(error.details.contains("ended the BLE session")) }
                     Log.i("UsbMdocTest", "round=$round exchange passed mtu=$mtu")
                 }

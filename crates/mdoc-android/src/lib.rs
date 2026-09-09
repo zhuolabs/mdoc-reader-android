@@ -1,7 +1,8 @@
 use anyhow::{Result, ensure};
-use mdoc_android_platform::{BlePlatform, EventSink, NfcPlatform};
+use mdoc_android_platform::{EventSink, NfcPlatform};
 use mdoc_core::{CoseKeyPrivate, DeviceRequest, NameSpaces};
 use mdoc_reader_flow::{IssuerTrust, ReaderOptions, TrustPolicy, VerificationPolicy};
+use mdoc_transport_ble::{BleBackend, BleMdocTransportConnector};
 use mdoc_ui::MdocResultUi;
 use serde::Deserialize;
 use std::sync::{
@@ -38,21 +39,6 @@ pub trait NfcHardware: Send + Sync {
     fn shutdown(&self);
 }
 
-/// BLE operations execute on Tokio blocking workers, never the Kotlin UI thread.
-/// Shutdown may be called from the caller thread to interrupt pending operations.
-#[uniffi::export(with_foreign)]
-pub trait BleHardware: Send + Sync {
-    fn ble_connect(
-        &self,
-        uuid: String,
-        ident: Vec<u8>,
-        timeout_ms: u64,
-    ) -> Result<u16, ReaderError>;
-    fn ble_send(&self, chunk: Vec<u8>) -> Result<(), ReaderError>;
-    fn ble_receive(&self, timeout_ms: u64) -> Result<Vec<u8>, ReaderError>;
-    fn shutdown(&self);
-}
-
 #[uniffi::export(with_foreign)]
 pub trait ReaderEventSink: Send + Sync {
     fn on_event(&self, event: String);
@@ -70,21 +56,6 @@ impl NfcPlatform for NfcAdapter {
         self.0.shutdown();
     }
 }
-struct BleAdapter(Arc<dyn BleHardware>);
-impl BlePlatform for BleAdapter {
-    fn ble_connect(&self, u: String, i: Vec<u8>, t: u64) -> Result<u16> {
-        Ok(self.0.ble_connect(u, i, t)?)
-    }
-    fn ble_send(&self, c: Vec<u8>) -> Result<()> {
-        Ok(self.0.ble_send(c)?)
-    }
-    fn ble_receive(&self, t: u64) -> Result<Vec<u8>> {
-        Ok(self.0.ble_receive(t)?)
-    }
-    fn shutdown(&self) {
-        self.0.shutdown();
-    }
-}
 struct EventAdapter(Arc<dyn ReaderEventSink>);
 impl EventSink for EventAdapter {
     fn on_event(&self, event: String) {
@@ -95,7 +66,7 @@ impl EventSink for EventAdapter {
 #[derive(uniffi::Object)]
 pub struct ReaderSession {
     nfc: Arc<dyn NfcPlatform>,
-    ble: Arc<dyn BlePlatform>,
+    ble: Arc<dyn BleBackend>,
     events: Arc<dyn EventSink>,
     cancelled: CancellationToken,
     started: AtomicBool,
@@ -112,12 +83,12 @@ impl ReaderSession {
     #[uniffi::constructor]
     pub fn new(
         nfc: Arc<dyn NfcHardware>,
-        ble: Arc<dyn BleHardware>,
+        ble: Arc<dyn BleBackend>,
         events: Arc<dyn ReaderEventSink>,
     ) -> Arc<Self> {
         Arc::new(Self {
             nfc: Arc::new(NfcAdapter(nfc)),
-            ble: Arc::new(BleAdapter(ble)),
+            ble,
             events: Arc::new(EventAdapter(events)),
             cancelled: CancellationToken::new(),
             started: AtomicBool::new(false),
@@ -217,7 +188,7 @@ fn parse_request(raw: &str) -> Result<(DeviceRequest, url::Url)> {
 }
 async fn run(
     nfc_platform: Arc<dyn NfcPlatform>,
-    ble_platform: Arc<dyn BlePlatform>,
+    ble_platform: Arc<dyn BleBackend>,
     events: Arc<dyn EventSink>,
     raw: String,
 ) -> Result<String> {
@@ -229,9 +200,10 @@ async fn run(
     )
     .await??;
     let mut nfc = nfc_reader_android::AndroidNfcReader(nfc_platform);
-    let ble = mdoc_transport_ble_android::AndroidBleConnector {
-        platform: ble_platform,
-        events: events.clone(),
+    events.on_event("ble_connecting".into());
+    let ble = BleMdocTransportConnector {
+        backend: ble_platform,
+        operation_timeout: std::time::Duration::from_secs(120),
     };
     let mut ui = mdoc_ui_android::AndroidUi {
         events,

@@ -20,5 +20,5 @@ object BleBackend {
             "Turn on Bluetooth to continue."
         }
     }
-    suspend fun open(context: Context, events: ReaderEventSink): BleSessionHardware = AndroidBleHardware(context, events)
+    suspend fun open(context: Context, events: ReaderEventSink): BleSessionHardware = AndroidBleBackend(context, events)
 }
