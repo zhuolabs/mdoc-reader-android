@@ -7,9 +7,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,7 +58,8 @@ private val labels = mapOf("full_name_unicode" to "Full name", "resident_address
 
 @Composable
 fun ReaderScreen(state: ReaderState, onStart: () -> Unit, onCancel: () -> Unit,
-    onClear: () -> Unit, onSettings: () -> Unit) {
+    onClear: () -> Unit, onSettings: () -> Unit, requested: List<RequestedField>,
+    selected: Set<RequestedField>, onSelectionChange: (RequestedField, Boolean) -> Unit) {
     Surface(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(vertical = 24.dp)) {
@@ -87,17 +91,33 @@ fun ReaderScreen(state: ReaderState, onStart: () -> Unit, onCancel: () -> Unit,
                         if (state.stage == "nfc_waiting" || state.stage == "nfc_connected")
                             Text("Start presenting your ID in the wallet. Hold the NFC areas of both devices together until Bluetooth connects.")
                         if (state.busy) OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
-                        else Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) { Text(if (state.documents.isEmpty()) "Start reading" else "Read another ID") }
+                        else if (state.documents.isEmpty()) Button(onClick = onStart, enabled = selected.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Start reading") }
                     }
                 }
             }
-            if (state.documents.isEmpty() && !state.busy) item {
+            if (state.documents.isEmpty() && !state.busy) {
+              item {
                 Text("Requested information", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
-                Text("Full name, address, individual number, portrait, date of birth, sex, age and local government code. The wallet asks you to approve sharing.")
+                Text("Select the information to request. The wallet asks you to approve sharing.")
+                if (selected.isEmpty()) Text("Select at least one item.", color = MaterialTheme.colorScheme.error)
+              }
+              items(requested) { field ->
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .toggleable(value = field in selected, role = Role.Checkbox,
+                        onValueChange = { onSelectionChange(field, it) }),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = field in selected, onCheckedChange = null)
+                    Spacer(Modifier.width(12.dp))
+                    Text(labels[field.name] ?: field.name.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                        modifier = Modifier.weight(1f))
+                }
+              }
+              item {
                 Spacer(Modifier.height(12.dp))
                 Text("Information stays in memory and is cleared when you leave this screen.", style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = onSettings) { Text(BleBackend.settingsLabel) }
+              }
             }
             state.documents.forEach { doc ->
                 item { Text(doc.docType, style = MaterialTheme.typography.titleSmall) }

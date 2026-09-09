@@ -85,7 +85,7 @@ android run --apks=android/app/build/outputs/apk/platform/debug/app-platform-deb
 ```
 
 1. Enable NFC and Bluetooth on the reader and allow **Nearby devices** permission.
-2. Tap **Start reading** and wait for **Hold the presenting device nearby**.
+2. Select the fields under **Requested information**, then tap **Start reading** and wait for **Hold the presenting device nearby**. Portrait and full name are selected initially when present in the request configuration; at least one item must remain selected.
 3. Start presenting a compatible mobile ID in the other device's wallet and hold the NFC areas together.
 4. Keep the devices together during NFC handover. Approve the requested information in the wallet when prompted.
 5. Review the authenticated attributes and portrait, then tap **Clear results**.

@@ -14,6 +14,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -29,6 +31,10 @@ class MainActivity : ComponentActivity() {
     private var session: ReaderSession? = null
     private var reading: Job? = null
     private var generation = 0
+    private var requestTemplate: String? = null
+    private var availableFields: List<RequestedField> = emptyList()
+    private var selectedFields by mutableStateOf(emptySet<RequestedField>())
+    private var pendingRequest: String? = null
     private val nfc by lazy { NfcAdapter.getDefaultAdapter(this) }
     private val permissions = BleBackend.permissions
     private val requestPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -39,12 +45,23 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        try {
+            val template = loadRequest()
+            availableFields = requestedFields(template)
+            selectedFields = availableFields.filter {
+                it.name == "portrait" || it.name == "full_name_unicode"
+            }.toSet()
+            requestTemplate = template
+        } catch (error: Exception) {
+            state.value = ReaderState(error = error.message ?: "Unable to load requested information")
+        }
         setContent {
             val current by state.collectAsStateWithLifecycle()
             MdocReaderTheme {
                 ReaderScreen(current, ::requestRead, ::cancelRead,
                     { state.value = ReaderState() },
-                    ::openConnectionPreferences)
+                    ::openConnectionPreferences, availableFields, selectedFields,
+                    { field, checked -> selectedFields = if (checked) selectedFields + field else selectedFields - field })
             }
         }
     }
@@ -55,6 +72,9 @@ class MainActivity : ComponentActivity() {
     }
     private fun requestRead() {
         if (reading?.isCompleted == false) return
+        val template = requestTemplate ?: return
+        if (selectedFields.isEmpty()) return
+        pendingRequest = selectedRequest(template, selectedFields)
         if (permissions.any { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }) {
             requestPermissions.launch(permissions); return
         }
@@ -63,6 +83,7 @@ class MainActivity : ComponentActivity() {
     @android.annotation.SuppressLint("MissingPermission")
     private fun startRead() {
         if (reading?.isCompleted == false) return
+        val request = pendingRequest ?: return
         val adapter = nfc
         if (adapter == null || !adapter.isEnabled) {
             state.value = ReaderState(error = "Turn on NFC. An NFC-capable device is required."); return
@@ -86,7 +107,6 @@ class MainActivity : ComponentActivity() {
                 bleSession = BleBackend.open(this@MainActivity, eventSink)
                 bleHardware = bleSession
                 nfcSession.start()
-                val request = withContext(Dispatchers.IO) { loadRequest() }
                 native = bleSession.readerSession(nfcSession, eventSink)
                 session = native
                 // UniFFI suspend API; Rust schedules the flow and hardware work on Tokio.
